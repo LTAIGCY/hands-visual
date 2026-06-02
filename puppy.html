@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Usagi Chase</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' x='6' font-size='42'%3E%E5%85%94%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --ink: #272019;
+      --paper: #fffaf2;
+      --panel: rgba(255, 250, 242, 0.84);
+      --panel-strong: rgba(255, 250, 242, 0.94);
+      --line: rgba(39, 32, 25, 0.18);
+      --mint: #70d6c9;
+      --coral: #ff8a72;
+      --lemon: #ffe071;
+      --sky: #6bb7ff;
+      --berry: #d95c91;
+      --shadow: rgba(31, 21, 12, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #77cbe3;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 35%),
+        linear-gradient(135deg, #8ce0df 0%, #f9dd89 48%, #ffa98f 100%);
+    }
+
+    #video {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #scene {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: min(440px, calc(100vw - 24px));
+      pointer-events: none;
+    }
+
+    .badge {
+      width: fit-content;
+      max-width: 100%;
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 8px 22px var(--shadow);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      font-size: 13px;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--lemon);
+      box-shadow: 0 0 0 3px rgba(255, 224, 113, 0.28);
+      flex: 0 0 auto;
+    }
+
+    .badge.ok .status-dot {
+      background: var(--mint);
+      box-shadow: 0 0 0 3px rgba(112, 214, 201, 0.28);
+    }
+
+    .toolbar {
+      position: fixed;
+      right: max(12px, env(safe-area-inset-right));
+      top: max(12px, env(safe-area-inset-top));
+      z-index: 8;
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-button {
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-strong);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 22px var(--shadow);
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgba(39, 32, 25, 0.34);
+      outline: 0;
+    }
+
+    .icon-button svg {
+      width: 21px;
+      height: 21px;
+      stroke-width: 2.2;
+    }
+
+    .icon-button.playing {
+      background: #fff3c6;
+      border-color: rgba(255, 138, 114, 0.68);
+      color: #7a392f;
+    }
+
+    .settings {
+      position: fixed;
+      right: max(12px, env(safe-area-inset-right));
+      top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+      z-index: 7;
+      width: min(330px, calc(100vw - 24px));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-strong);
+      box-shadow: 0 16px 42px rgba(31, 21, 12, 0.22);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      padding: 12px;
+      transform-origin: top right;
+      transform: scale(0.98);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .settings.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1);
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .field label,
+    .field-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(39, 32, 25, 0.76);
+    }
+
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .character-button {
+      min-height: 54px;
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.56);
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    }
+
+    .character-button[aria-pressed="true"] {
+      border-color: rgba(39, 32, 25, 0.48);
+      background: #fff3c6;
+    }
+
+    .character-button:hover {
+      transform: translateY(-1px);
+    }
+
+    .face-chip {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      background: #fff;
+      border: 1px solid rgba(39, 32, 25, 0.14);
+    }
+
+    .character-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .character-note {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+      color: rgba(39, 32, 25, 0.6);
+      line-height: 1.15;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.48);
+    }
+
+    .segmented button {
+      min-height: 34px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(39, 32, 25, 0.7);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 46px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--coral);
+    }
+
+    .value {
+      text-align: right;
+      font-size: 12px;
+      font-weight: 800;
+      color: rgba(39, 32, 25, 0.7);
+    }
+
+    .hint {
+      position: fixed;
+      left: 50%;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      z-index: 6;
+      width: min(560px, calc(100vw - 24px));
+      transform: translateX(-50%) translateY(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.24s ease, transform 0.24s ease;
+      display: flex;
+      justify-content: center;
+    }
+
+    .hint.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .hint span {
+      display: inline-block;
+      max-width: 100%;
+      padding: 11px 16px;
+      border: 1px solid rgba(39, 32, 25, 0.16);
+      border-radius: 8px;
+      background: rgba(39, 32, 25, 0.84);
+      color: #fffaf2;
+      box-shadow: 0 12px 30px rgba(31, 21, 12, 0.24);
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.24;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+
+    .start-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(180deg, rgba(255, 250, 242, 0.66), rgba(255, 250, 242, 0.18)),
+        linear-gradient(135deg, #84d7e9, #f8d867 52%, #ff9f8a);
+      transition: opacity 0.3s ease;
+    }
+
+    .start-layer.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .start-panel {
+      width: min(440px, calc(100vw - 28px));
+      border: 1px solid rgba(39, 32, 25, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 250, 242, 0.88);
+      box-shadow: 0 18px 48px rgba(31, 21, 12, 0.22);
+      padding: 18px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      text-align: center;
+    }
+
+    .start-face {
+      width: 132px;
+      height: 132px;
+      margin: 0 auto 12px;
+      position: relative;
+    }
+
+    .start-title {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .start-copy {
+      margin: 10px 0 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: rgba(39, 32, 25, 0.72);
+    }
+
+    .primary-action {
+      min-height: 44px;
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 15px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .secondary-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .secondary-row button {
+      flex: 1;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.54);
+      color: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      z-index: 18;
+      transform: translate(-50%, -50%) scale(0.96);
+      min-width: min(320px, calc(100vw - 32px));
+      max-width: min(420px, calc(100vw - 32px));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 250, 242, 0.94);
+      box-shadow: 0 18px 42px rgba(31, 21, 12, 0.24);
+      color: var(--ink);
+      padding: 14px 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 750;
+      text-align: center;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    @media (max-width: 720px) {
+      .hud {
+        right: 108px;
+        max-width: calc(100vw - 132px);
+      }
+
+      .badge {
+        min-height: 31px;
+        padding: 6px 9px;
+        font-size: 12px;
+      }
+
+      .toolbar {
+        gap: 6px;
+      }
+
+      .icon-button {
+        width: 38px;
+        height: 38px;
+      }
+
+      .settings {
+        left: 12px;
+        right: 12px;
+        top: auto;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: auto;
+        transform-origin: bottom right;
+      }
+
+      .hint {
+        bottom: max(12px, env(safe-area-inset-bottom));
+      }
+
+      .hint span {
+        font-size: 14px;
+      }
+
+      .start-title {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="scene"></canvas>
+  </main>
+
+  <div class="hud" aria-live="polite">
+    <div class="badge" id="statusBadge"><span class="status-dot"></span><span id="statusText">等待开始</span></div>
+    <div class="badge ok"><span class="status-dot"></span><span id="moodText">乌萨奇在憋不住要动</span></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="icon-button" id="musicBtn" type="button" aria-label="切换音乐" title="切换音乐">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </svg>
+    </button>
+    <button class="icon-button" id="settingsBtn" type="button" aria-label="打开设置" title="打开设置" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.05V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.4-1.05 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.05-.4H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.05-.4 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.05V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .4 1.05 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.24.35.6.6 1 .6H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.05.4c-.28.2-.48.55-.46 1Z" />
+      </svg>
+    </button>
+  </div>
+
+  <section class="settings" id="settingsPanel" aria-label="设置">
+    <h2 class="panel-title">设置 <span id="activeName">乌萨奇</span></h2>
+    <div class="field">
+      <div class="field-title">角色</div>
+      <div class="character-grid" id="characterGrid"></div>
+    </div>
+    <div class="field">
+      <div class="field-title">输入</div>
+      <div class="segmented">
+        <button type="button" id="cameraModeBtn" aria-pressed="true">摄像头</button>
+        <button type="button" id="touchModeBtn" aria-pressed="false">触摸</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="energyRange">活泼度</label>
+      <div class="range-row">
+        <input id="energyRange" type="range" min="70" max="135" value="110" />
+        <span class="value" id="energyValue">110%</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="hint" id="hint"><span id="hintText">呀哈！</span></div>
+  <div class="toast" id="toast"></div>
+
+  <section class="start-layer" id="startLayer" aria-label="开始">
+    <div class="start-panel">
+      <canvas class="start-face" id="startFace" width="264" height="264"></canvas>
+      <h1 class="start-title">居家遛乌萨奇</h1>
+      <p class="start-copy">乌萨奇已经准备好在家里撒欢，欢乐小跑马上开始。</p>
+      <button class="primary-action" id="startCameraBtn" type="button">打开摄像头开始</button>
+      <div class="secondary-row">
+        <button id="startTouchBtn" type="button">触摸模式</button>
+        <button id="startMusicBtn" type="button">先开音乐</button>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const canvas = document.getElementById('scene');
+      const ctx = canvas.getContext('2d');
+      const video = document.getElementById('video');
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      const moodText = document.getElementById('moodText');
+      const hint = document.getElementById('hint');
+      const hintText = document.getElementById('hintText');
+      const toast = document.getElementById('toast');
+      const settingsBtn = document.getElementById('settingsBtn');
+      const settingsPanel = document.getElementById('settingsPanel');
+      const musicBtn = document.getElementById('musicBtn');
+      const characterGrid = document.getElementById('characterGrid');
+      const activeName = document.getElementById('activeName');
+      const startLayer = document.getElementById('startLayer');
+      const startCameraBtn = document.getElementById('startCameraBtn');
+      const startTouchBtn = document.getElementById('startTouchBtn');
+      const startMusicBtn = document.getElementById('startMusicBtn');
+      const cameraModeBtn = document.getElementById('cameraModeBtn');
+      const touchModeBtn = document.getElementById('touchModeBtn');
+      const energyRange = document.getElementById('energyRange');
+      const energyValue = document.getElementById('energyValue');
+      const startFace = document.getElementById('startFace');
+      const startFaceCtx = startFace.getContext('2d');
+
+      const TAU = Math.PI * 2;
+      const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const pick = (items) => items[Math.floor(Math.random() * items.length)];
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+      const characters = {
+        usagi: {
+          id: 'usagi',
+          name: '乌萨奇',
+          short: '乌萨奇',
+          chip: '兔',
+          note: '暴走开心',
+          palette: {
+            body: '#fff8dc',
+            shade: '#f0dd9c',
+            blush: '#ff9fb0',
+            accent: '#ffd44f',
+            line: '#302316',
+            earInner: '#ffe49b',
+            outfit: '#f7fbff',
+            outfitLine: '#6db7e8'
+          },
+          speed: 1.34,
+          orbit: 1.24,
+          bounce: 1.32,
+          size: 1.05,
+          temperament: 'wild',
+          labels: {
+            idle: '乌萨奇正在蓄力',
+            chase: '乌萨奇冲过来了',
+            sniff: '乌萨奇盯住你了',
+            excited: '乌萨奇开始绕圈',
+            teased: '乌萨奇不服气',
+            lost: '乌萨奇在找你'
+          },
+          lines: {
+            idle: ['呀哈！', '乌拉！', '准备冲！'],
+            chase: ['呀哈——！', '乌拉呀哈！', '追上啦！'],
+            sniff: ['哈？', '盯——', '再靠近点！'],
+            excited: ['呀哈呀哈！', '转起来！', '开心爆发！'],
+            teased: ['喂！别跑！', '乌拉！？', '再来一次！'],
+            lost: ['哈？人呢？', '乌萨奇巡逻中', '呀哈？']
+          }
+        },
+        puppy: {
+          id: 'puppy',
+          name: '小狗',
+          short: '小狗',
+          chip: '犬',
+          note: '贴贴嗅嗅',
+          palette: {
+            body: '#f7ca84',
+            shade: '#d99654',
+            blush: '#ff9b8d',
+            accent: '#7bc47f',
+            line: '#2f2116',
+            earInner: '#9e653a',
+            outfit: '#fff2db',
+            outfitLine: '#8a6b42'
+          },
+          speed: 1.04,
+          orbit: 0.92,
+          bounce: 1.0,
+          size: 1.0,
+          temperament: 'dog',
+          labels: {
+            idle: '小狗乖乖等你',
+            chase: '小狗追着手指跑',
+            sniff: '小狗在嗅嗅',
+            excited: '小狗开心打转',
+            teased: '小狗委屈巴巴',
+            lost: '小狗坐下等你'
+          },
+          lines: {
+            idle: ['汪！', '来玩嘛', '我在等你'],
+            chase: ['等等我！', '汪汪！', '马上追到！'],
+            sniff: ['闻闻~', '是你呀', '贴近一点'],
+            excited: ['开心！', '贴贴！', '转圈圈！'],
+            teased: ['怎么跑啦！', '刚要贴贴！', '再摸一下嘛'],
+            lost: ['主人呢？', '我在这里', '回来玩呀']
+          }
+        },
+        hachiware: {
+          id: 'hachiware',
+          name: '小八',
+          short: '小八',
+          chip: '八',
+          note: '温柔乐天',
+          palette: {
+            body: '#fbfbf5',
+            shade: '#72b5ea',
+            blush: '#ffadc0',
+            accent: '#5fc4e0',
+            line: '#263343',
+            earInner: '#bde9ff',
+            outfit: '#fff9dc',
+            outfitLine: '#7ec4ee'
+          },
+          speed: 0.95,
+          orbit: 0.78,
+          bounce: 0.88,
+          size: 1.0,
+          temperament: 'kind',
+          labels: {
+            idle: '小八轻轻哼歌',
+            chase: '小八认真跟上',
+            sniff: '小八好奇靠近',
+            excited: '小八开心挥手',
+            teased: '小八有点担心',
+            lost: '小八到处看看'
+          },
+          lines: {
+            idle: ['一起玩吧', '今天也不错', '哼哼~'],
+            chase: ['我跟上啦！', '这边这边！', '跑起来也可以！'],
+            sniff: ['原来如此', '是朋友的气息', '靠近看看'],
+            excited: ['太好啦！', '好开心！', '再来一次！'],
+            teased: ['咦？走了吗？', '没关系，我等你', '慢慢来呀'],
+            lost: ['在哪里呢？', '我看看周围', '等你回来']
+          }
+        },
+        chiikawa: {
+          id: 'chiikawa',
+          name: '吉伊',
+          short: '吉伊',
+          chip: '吉',
+          note: '害羞可爱',
+          palette: {
+            body: '#fffdf7',
+            shade: '#eee4d2',
+            blush: '#ff9ab0',
+            accent: '#f6b6d1',
+            line: '#2c241d',
+            earInner: '#ffd5df',
+            outfit: '#fef4ff',
+            outfitLine: '#d7a5ca'
+          },
+          speed: 0.82,
+          orbit: 0.64,
+          bounce: 0.78,
+          size: 0.96,
+          temperament: 'shy',
+          labels: {
+            idle: '吉伊小心等着',
+            chase: '吉伊努力靠近',
+            sniff: '吉伊轻轻观察',
+            excited: '吉伊害羞开心',
+            teased: '吉伊眼泪汪汪',
+            lost: '吉伊缩成一团'
+          },
+          lines: {
+            idle: ['嗯...', '等一下下', '会来的吧'],
+            chase: ['我努力！', '等等我...', '快追上了'],
+            sniff: ['是你吗？', '近一点点', '有点安心'],
+            excited: ['好开心...', '嘿嘿', '想贴贴'],
+            teased: ['呜...', '不要走...', '我会等的'],
+            lost: ['人呢...', '有点怕', '还在这里']
+          }
+        }
+      };
+
+      const state = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        dpr: Math.max(1, Math.min(2, window.devicePixelRatio || 1)),
+        mode: 'camera',
+        started: false,
+        cameraReady: false,
+        frameReady: false,
+        lastVideoFrame: null,
+        target: null,
+        lastTarget: null,
+        targetVelocity: { x: 0, y: 0 },
+        targetActive: false,
+        lastSeen: 0,
+        closeSince: 0,
+        closeMemory: 0,
+        previousDistance: null,
+        mood: 'idle',
+        moodTimer: 0,
+        moodLockUntil: 0,
+        characterId: localStorage.getItem('usagi-chase.character') || 'usagi',
+        energy: parseInt(localStorage.getItem('usagi-chase.energy') || '110', 10),
+        particles: [],
+        bubbles: [],
+        lastLineAt: 0,
+        nextIdleLine: 0,
+        pointerDown: false,
+        camera: null,
+        hands: null,
+        fallbackTime: 0
+      };
+
+      const buddy = {
+        x: state.width * 0.5,
+        y: state.height * 0.68,
+        vx: 0,
+        vy: 0,
+        facing: 1,
+        phase: 0,
+        blink: 0,
+        blinkAt: 1.8,
+        squish: 0,
+        spin: 0,
+        shy: 0,
+        jump: 0
+      };
+
+      function currentCharacter() {
+        return characters[state.characterId] || characters.usagi;
+      }
+
+      function resize() {
+        state.width = window.innerWidth;
+        state.height = window.innerHeight;
+        state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        canvas.width = Math.floor(state.width * state.dpr);
+        canvas.height = Math.floor(state.height * state.dpr);
+        canvas.style.width = state.width + 'px';
+        canvas.style.height = state.height + 'px';
+        ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+        buddy.x = clamp(buddy.x, 70, Math.max(70, state.width - 70));
+        buddy.y = clamp(buddy.y, 95, Math.max(95, state.height - 55));
+      }
+
+      function setStatus(text, ok = false) {
+        statusText.textContent = text;
+        statusBadge.classList.toggle('ok', ok);
+      }
+
+      function setMood(mood, force = false) {
+        const now = performance.now();
+        if (!force && now < state.moodLockUntil && mood !== state.mood) return;
+        if (mood !== state.mood || force) {
+          state.mood = mood;
+          state.moodTimer = 0;
+          moodText.textContent = currentCharacter().labels[mood] || '';
+          if (force || now - state.lastLineAt > 700) showLine(mood);
+        }
+      }
+
+      function showLine(mood) {
+        const character = currentCharacter();
+        const lines = character.lines[mood] || character.lines.idle;
+        hintText.textContent = pick(lines);
+        hint.classList.add('show');
+        state.lastLineAt = performance.now();
+        clearTimeout(showLine.timer);
+        showLine.timer = setTimeout(() => hint.classList.remove('show'), 1450);
+        spawnBubble(buddy.x + buddy.facing * 36, buddy.y - 118, hintText.textContent, character);
+      }
+
+      function showToast(text) {
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+      }
+
+      function setMode(mode) {
+        state.mode = mode;
+        cameraModeBtn.setAttribute('aria-pressed', String(mode === 'camera'));
+        touchModeBtn.setAttribute('aria-pressed', String(mode === 'touch'));
+        if (mode === 'touch') {
+          setStatus('触摸模式', true);
+          state.targetActive = false;
+          state.target = null;
+        } else {
+          setStatus(state.cameraReady ? '摄像头运行中' : '摄像头准备中', state.cameraReady);
+        }
+      }
+
+      function updateCharacterButtons() {
+        const character = currentCharacter();
+        activeName.textContent = character.name;
+        for (const button of characterGrid.querySelectorAll('button')) {
+          button.setAttribute('aria-pressed', String(button.dataset.character === state.characterId));
+        }
+        moodText.textContent = character.labels[state.mood] || `${character.name}准备好了`;
+        localStorage.setItem('usagi-chase.character', state.characterId);
+        drawStartFace();
+      }
+
+      function createCharacterButtons() {
+        characterGrid.innerHTML = '';
+        for (const character of Object.values(characters)) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'character-button';
+          button.dataset.character = character.id;
+          button.innerHTML = `
+            <span class="face-chip">${character.chip}</span>
+            <span>
+              <span class="character-name">${character.name}</span>
+              <span class="character-note">${character.note}</span>
+            </span>
+          `;
+          button.addEventListener('click', () => {
+            state.characterId = character.id;
+            buddy.spin = 0;
+            spawnPop(buddy.x, buddy.y - 50, character);
+            updateCharacterButtons();
+            showLine('idle');
+          });
+          characterGrid.appendChild(button);
+        }
+        updateCharacterButtons();
+      }
+
+      function drawStartFace() {
+        startFaceCtx.clearRect(0, 0, startFace.width, startFace.height);
+        startFaceCtx.save();
+        startFaceCtx.scale(2, 2);
+        drawCharacter(startFaceCtx, 66, 88, 1.12, currentCharacter(), {
+          mood: 'idle',
+          facing: 1,
+          phase: performance.now() / 650,
+          blink: 0,
+          squish: 0,
+          spin: 0,
+          shy: currentCharacter().temperament === 'shy' ? 0.55 : 0,
+          jump: 0
+        });
+        startFaceCtx.restore();
+      }
+
+      function drawBackdrop() {
+        const w = state.width;
+        const h = state.height;
+        if (state.mode === 'camera' && state.frameReady && video.videoWidth && video.videoHeight) {
+          ctx.save();
+          ctx.fillStyle = '#7fd8dc';
+          ctx.fillRect(0, 0, w, h);
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          const scale = Math.max(w / vw, h / vh);
+          const dw = vw * scale;
+          const dh = vh * scale;
+          const dx = (w - dw) / 2;
+          const dy = (h - dh) / 2;
+          ctx.translate(w, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, dx, dy, dw, dh);
+          ctx.restore();
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 250, 242, 0.16)';
+          ctx.fillRect(0, 0, w, h);
+          ctx.restore();
+        } else {
+          const g = ctx.createLinearGradient(0, 0, w, h);
+          g.addColorStop(0, '#87dce8');
+          g.addColorStop(0.48, '#f6db76');
+          g.addColorStop(1, '#ff9d88');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, w, h);
+
+          const t = performance.now() / 1000;
+          ctx.save();
+          ctx.globalAlpha = 0.2;
+          ctx.fillStyle = '#ffffff';
+          for (let i = 0; i < 10; i++) {
+            const x = ((i * 173 + t * 18) % (w + 140)) - 70;
+            const y = 50 + (i % 5) * 52 + Math.sin(t + i) * 8;
+            drawCloud(x, y, 0.68 + (i % 3) * 0.13);
+          }
+          ctx.restore();
+
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.24)';
+          for (let i = 0; i < 8; i++) {
+            const x = (i * 151 + Math.sin(t * 0.7 + i) * 16) % (w + 100) - 40;
+            const y = h * 0.74 + Math.cos(t * 0.9 + i) * 12;
+            ctx.beginPath();
+            ctx.ellipse(x, y, 84, 18, -0.18, 0, TAU);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+      }
+
+      function drawCloud(x, y, s) {
+        ctx.beginPath();
+        ctx.ellipse(x, y + 10 * s, 38 * s, 15 * s, 0, 0, TAU);
+        ctx.ellipse(x + 26 * s, y + 7 * s, 30 * s, 14 * s, 0, 0, TAU);
+        ctx.ellipse(x - 26 * s, y + 9 * s, 26 * s, 13 * s, 0, 0, TAU);
+        ctx.ellipse(x + 5 * s, y - 2 * s, 29 * s, 19 * s, 0, 0, TAU);
+        ctx.fill();
+      }
+
+      function drawTarget() {
+        if (!state.targetActive || !state.target) return;
+        const t = performance.now() / 1000;
+        const x = state.target.x;
+        const y = state.target.y;
+        ctx.save();
+        for (let i = 0; i < 3; i++) {
+          const p = (t * 1.3 + i * 0.33) % 1;
+          ctx.globalAlpha = 0.42 * (1 - p);
+          ctx.strokeStyle = i === 0 ? '#fffaf2' : '#ff8a72';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y, 12 + p * 42, 0, TAU);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#fffaf2';
+        ctx.shadowColor = '#ff8a72';
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function updateBuddy(dt) {
+        const character = currentCharacter();
+        const energy = state.energy / 100;
+        const now = performance.now();
+        state.moodTimer += dt;
+        buddy.phase += dt * (5.8 + energy * 2.2);
+        buddy.blinkAt -= dt;
+        if (buddy.blinkAt <= 0) {
+          buddy.blink = 1;
+          buddy.blinkAt = 2.2 + Math.random() * 2.6;
+        }
+        buddy.blink = Math.max(0, buddy.blink - dt * 8);
+
+        let target = state.targetActive ? state.target : null;
+        if (target && now - state.lastSeen > 260 && state.mode === 'touch' && !state.pointerDown) target = null;
+        if (!target && now - state.lastSeen > 500) {
+          state.targetActive = false;
+          state.target = null;
+        }
+
+        let d = Infinity;
+        let dx = 0;
+        let dy = 0;
+        if (target) {
+          dx = target.x - buddy.x;
+          dy = target.y + 48 - buddy.y;
+          d = Math.hypot(dx, dy);
+        }
+
+        const close = target && d < 108;
+        if (close) {
+          if (!state.closeSince) state.closeSince = now;
+          if (now - state.closeSince > 360) state.closeMemory = now;
+        } else if (target) {
+          state.closeSince = 0;
+        }
+
+        const pulledAway = target && state.previousDistance !== null && state.previousDistance < 126 && d > 185 && (d - state.previousDistance > 42 || Math.hypot(state.targetVelocity.x, state.targetVelocity.y) > 18);
+        const suddenlyLost = !target && state.closeMemory && now - state.closeMemory < 1400;
+        if ((pulledAway || suddenlyLost) && now > state.moodLockUntil) {
+          setMood('teased', true);
+          state.moodLockUntil = now + (character.temperament === 'wild' ? 900 : 1300);
+          for (let i = 0; i < 9; i++) spawnSpark(buddy.x, buddy.y - 60, character, 'teased');
+        } else if (target) {
+          const speed = Math.hypot(state.targetVelocity.x, state.targetVelocity.y);
+          if (d < 64) setMood('excited');
+          else if (d < 142 && speed < 5.5) setMood('sniff');
+          else setMood('chase');
+        } else if (now - state.lastSeen > 2600) {
+          setMood('lost');
+        } else {
+          setMood('idle');
+        }
+
+        state.previousDistance = target ? d : null;
+
+        if (state.mood === 'excited' && target) {
+          const radius = (42 + 16 * Math.sin(buddy.phase * 0.7)) * character.orbit;
+          const orbitSpeed = (character.temperament === 'wild' ? 2.4 : 1.45) * energy;
+          buddy.spin += dt * orbitSpeed;
+          const ox = target.x + Math.cos(buddy.spin) * radius;
+          const oy = target.y + 45 + Math.sin(buddy.spin) * radius * 0.62;
+          const odx = ox - buddy.x;
+          const ody = oy - buddy.y;
+          buddy.vx += odx * 0.06 * character.speed * energy;
+          buddy.vy += ody * 0.06 * character.speed * energy;
+          buddy.facing = Math.cos(buddy.spin) > 0 ? 1 : -1;
+          if (Math.random() < 0.16) spawnSpark(buddy.x, buddy.y - 70, character, 'happy');
+        } else if (target && state.mood !== 'teased') {
+          const ux = dx / (d || 1);
+          const uy = dy / (d || 1);
+          const farBoost = clamp((d - 90) / 260, 0, 1);
+          const baseAccel = (state.mood === 'sniff' ? 0.22 : 0.58 + farBoost * 0.68) * character.speed * energy;
+          buddy.vx += ux * baseAccel;
+          buddy.vy += uy * baseAccel;
+          if (Math.abs(dx) > 12) buddy.facing = dx >= 0 ? 1 : -1;
+        } else if (state.mood === 'teased') {
+          buddy.vx += Math.sin(buddy.phase * 1.4) * 0.12 * character.speed;
+          buddy.vy += Math.cos(buddy.phase * 1.7) * 0.08;
+          if (character.temperament === 'wild') buddy.jump = Math.max(buddy.jump, 18);
+        } else {
+          const homeX = state.width * 0.5 + Math.sin(now / 1800) * Math.min(90, state.width * 0.12);
+          const homeY = state.height * 0.68 + Math.sin(now / 2600) * 22;
+          const hdx = homeX - buddy.x;
+          const hdy = homeY - buddy.y;
+          const hd = Math.hypot(hdx, hdy);
+          if (hd > 24) {
+            buddy.vx += (hdx / hd) * 0.12;
+            buddy.vy += (hdy / hd) * 0.12;
+          }
+          if (character.temperament === 'wild' && Math.random() < 0.006) {
+            buddy.jump = 28;
+            showLine('idle');
+          }
+        }
+
+        const cap = (state.mood === 'chase' ? 12.5 : 8.5) * character.speed * energy;
+        const speedNow = Math.hypot(buddy.vx, buddy.vy);
+        if (speedNow > cap) {
+          buddy.vx = buddy.vx / speedNow * cap;
+          buddy.vy = buddy.vy / speedNow * cap;
+        }
+
+        const damp = state.mood === 'chase' ? 0.91 : state.mood === 'excited' ? 0.88 : 0.84;
+        buddy.vx *= damp;
+        buddy.vy *= damp;
+        buddy.x += buddy.vx;
+        buddy.y += buddy.vy;
+        buddy.jump = Math.max(0, buddy.jump - dt * 70);
+
+        const marginX = Math.max(52, Math.min(90, state.width * 0.09));
+        buddy.x = clamp(buddy.x, marginX, state.width - marginX);
+        buddy.y = clamp(buddy.y, 94, state.height - 48);
+
+        if (Math.hypot(buddy.vx, buddy.vy) > 5 && Math.random() < 0.26) {
+          spawnDust(buddy.x - buddy.facing * 30, buddy.y + 38, character);
+        }
+
+        if (now > state.nextIdleLine) {
+          if (!target && Math.random() < 0.5) showLine(state.mood);
+          state.nextIdleLine = now + 4300 + Math.random() * 4800;
+        }
+      }
+
+      function drawBuddy() {
+        const character = currentCharacter();
+        const speed = Math.hypot(buddy.vx, buddy.vy);
+        const runLift = Math.abs(Math.sin(buddy.phase * (state.mood === 'chase' ? 1.7 : 1))) * speed * 0.9 * character.bounce;
+        const moodLift = state.mood === 'excited' ? Math.abs(Math.sin(buddy.phase * 2.2)) * 12 * character.bounce : 0;
+        const scale = (Math.min(state.width, state.height) < 560 ? 0.78 : 1) * character.size;
+        drawCharacter(ctx, buddy.x, buddy.y - runLift - moodLift - buddy.jump, scale, character, {
+          mood: state.mood,
+          facing: buddy.facing,
+          phase: buddy.phase,
+          blink: buddy.blink,
+          squish: speed > 3 ? Math.sin(buddy.phase * 1.6) * 0.04 : 0,
+          spin: buddy.spin,
+          shy: character.temperament === 'shy' ? (state.mood === 'sniff' || state.mood === 'excited' ? 0.35 : 0.65) : 0,
+          jump: buddy.jump
+        });
+      }
+
+      function drawCharacter(targetCtx, x, y, s, character, pose) {
+        const p = character.palette;
+        const mood = pose.mood;
+        const facing = pose.facing;
+        const phase = pose.phase;
+        const blink = pose.blink;
+        const squish = pose.squish;
+        const shy = pose.shy || 0;
+        const wild = character.temperament === 'wild';
+        const dog = character.temperament === 'dog';
+        const kind = character.temperament === 'kind';
+        const isHachi = character.id === 'hachiware';
+        const isChiikawa = character.id === 'chiikawa';
+
+        targetCtx.save();
+        targetCtx.translate(x, y);
+        targetCtx.scale(s * facing, s);
+
+        targetCtx.save();
+        targetCtx.scale(1 + squish, 1 - squish * 0.65);
+
+        targetCtx.globalAlpha = 0.26;
+        targetCtx.fillStyle = '#2f2116';
+        targetCtx.beginPath();
+        targetCtx.ellipse(0, 46, 46, 12, 0, 0, TAU);
+        targetCtx.fill();
+        targetCtx.globalAlpha = 1;
+
+        if (wild) {
+          drawUsagi(targetCtx, p, mood, phase, blink);
+        } else if (dog) {
+          drawPuppy(targetCtx, p, mood, phase, blink);
+        } else if (kind) {
+          drawHachiware(targetCtx, p, mood, phase, blink);
+        } else {
+          drawChiikawa(targetCtx, p, mood, phase, blink);
+        }
+
+        if (mood === 'excited') {
+          targetCtx.save();
+          targetCtx.scale(facing, 1);
+          targetCtx.fillStyle = wild ? '#ffcf35' : isHachi ? '#7edfff' : isChiikawa ? '#ffbad2' : '#98df72';
+          targetCtx.globalAlpha = 0.8;
+          for (let i = 0; i < 3; i++) {
+            const a = phase * 1.6 + i * 2.1;
+            targetCtx.beginPath();
+            targetCtx.arc(Math.cos(a) * 54, -48 + Math.sin(a) * 16, 4.5, 0, TAU);
+            targetCtx.fill();
+          }
+          targetCtx.restore();
+        }
+
+        if (shy > 0) {
+          targetCtx.save();
+          targetCtx.globalAlpha = 0.18 * shy;
+          targetCtx.fillStyle = '#fff';
+          targetCtx.beginPath();
+          targetCtx.ellipse(0, -8, 42, 36, 0, 0, TAU);
+          targetCtx.fill();
+          targetCtx.restore();
+        }
+
+        targetCtx.restore();
+        targetCtx.restore();
+      }
+
+      function outline(ctx2, fill, stroke, line = 4) {
+        ctx2.fillStyle = fill;
+        ctx2.strokeStyle = stroke;
+        ctx2.lineWidth = line;
+        ctx2.lineJoin = 'round';
+        ctx2.lineCap = 'round';
+        ctx2.fill();
+        ctx2.stroke();
+      }
+
+      function drawUsagi(c, p, mood, phase, blink) {
+        const earWave = Math.sin(phase * 1.7) * (mood === 'chase' || mood === 'excited' ? 9 : 4);
+        c.save();
+        c.rotate(-0.18 + earWave * 0.004);
+        c.beginPath();
+        c.ellipse(-24, -72, 12, 45, -0.15, 0, TAU);
+        outline(c, p.body, p.line, 4);
+        c.beginPath();
+        c.ellipse(-24, -72, 5.5, 31, -0.15, 0, TAU);
+        outline(c, p.earInner, p.line, 1.4);
+        c.restore();
+
+        c.save();
+        c.rotate(0.18 - earWave * 0.004);
+        c.beginPath();
+        c.ellipse(22, -74, 12, 45, 0.12, 0, TAU);
+        outline(c, p.body, p.line, 4);
+        c.beginPath();
+        c.ellipse(22, -74, 5.5, 31, 0.12, 0, TAU);
+        outline(c, p.earInner, p.line, 1.4);
+        c.restore();
+
+        drawRoundBody(c, p.body, p.line);
+        drawBelly(c, p.outfit, p.outfitLine, mood);
+
+        const armLift = mood === 'excited' ? 1 : mood === 'chase' ? 0.5 : 0;
+        drawArm(c, -31, 0, -54, -12 - armLift * 20, p.body, p.line);
+        drawArm(c, 31, 0, 54, -8 - armLift * 22, p.body, p.line);
+        drawLegs(c, p.body, p.line, phase, mood);
+
+        drawEyes(c, p.line, blink, mood, -14, -22, 14, -22);
+        drawBlush(c, p.blush, -26, -9, 26, -9);
+        c.strokeStyle = p.line;
+        c.lineWidth = 3;
+        c.beginPath();
+        if (mood === 'teased') {
+          c.moveTo(-8, 2);
+          c.quadraticCurveTo(0, -4, 8, 2);
+        } else {
+          c.moveTo(-8, -1);
+          c.quadraticCurveTo(-2, 9, 0, 3);
+          c.quadraticCurveTo(2, 9, 8, -1);
+        }
+        c.stroke();
+      }
+
+      function drawPuppy(c, p, mood, phase, blink) {
+        const earFlop = Math.sin(phase * 1.4) * (mood === 'chase' ? 8 : 3);
+        c.save();
+        c.rotate(-0.42 + earFlop * 0.012);
+        c.beginPath();
+        c.ellipse(-31, -39, 15, 28, -0.5, 0, TAU);
+        outline(c, p.earInner, p.line, 4);
+        c.restore();
+        c.save();
+        c.rotate(0.42 - earFlop * 0.012);
+        c.beginPath();
+        c.ellipse(31, -39, 15, 28, 0.5, 0, TAU);
+        outline(c, p.earInner, p.line, 4);
+        c.restore();
+
+        c.save();
+        c.rotate(Math.sin(phase * 2.2) * 0.28);
+        c.beginPath();
+        c.moveTo(36, 21);
+        c.quadraticCurveTo(70, 0, 53, -18);
+        c.quadraticCurveTo(70, -12, 72, 9);
+        c.quadraticCurveTo(63, 35, 40, 36);
+        outline(c, p.body, p.line, 4);
+        c.restore();
+
+        drawRoundBody(c, p.body, p.line);
+        c.beginPath();
+        c.arc(-16, -31, 15, 0, TAU);
+        outline(c, p.earInner, p.line, 2.6);
+        drawBelly(c, p.outfit, p.outfitLine, mood);
+        drawArm(c, -31, 5, -48, 16, p.body, p.line);
+        drawArm(c, 31, 5, 48, 16, p.body, p.line);
+        drawLegs(c, p.body, p.line, phase, mood);
+        drawEyes(c, p.line, blink, mood, -15, -21, 16, -21);
+        drawBlush(c, p.blush, -27, -6, 27, -6);
+        c.fillStyle = p.line;
+        c.beginPath();
+        c.ellipse(0, -10, 5, 4, 0, 0, TAU);
+        c.fill();
+        c.strokeStyle = p.line;
+        c.lineWidth = 2.6;
+        c.beginPath();
+        if (mood === 'excited') {
+          c.moveTo(-9, 2);
+          c.quadraticCurveTo(0, 13, 10, 2);
+        } else if (mood === 'teased') {
+          c.moveTo(-8, 4);
+          c.quadraticCurveTo(0, -1, 8, 4);
+        } else {
+          c.moveTo(-7, 1);
+          c.quadraticCurveTo(0, 8, 7, 1);
+        }
+        c.stroke();
+      }
+
+      function drawHachiware(c, p, mood, phase, blink) {
+        drawCatEars(c, p, phase, mood);
+        drawRoundBody(c, p.body, p.line);
+        c.save();
+        c.beginPath();
+        c.moveTo(-38, -39);
+        c.bezierCurveTo(-18, -58, -6, -28, 0, -15);
+        c.bezierCurveTo(8, -30, 18, -58, 38, -38);
+        c.lineTo(38, 7);
+        c.bezierCurveTo(20, -4, 9, -3, 0, 8);
+        c.bezierCurveTo(-9, -3, -20, -4, -38, 7);
+        c.closePath();
+        outline(c, p.shade, p.line, 2.2);
+        c.restore();
+        drawBelly(c, p.outfit, p.outfitLine, mood);
+        drawArm(c, -31, 0, -49, 11 + Math.sin(phase) * 4, p.body, p.line);
+        drawArm(c, 31, 0, 49, 3 - (mood === 'excited' ? 18 : 0), p.body, p.line);
+        drawLegs(c, p.body, p.line, phase, mood);
+        drawEyes(c, p.line, blink, mood, -15, -19, 15, -19);
+        drawBlush(c, p.blush, -28, -4, 28, -4);
+        c.strokeStyle = p.line;
+        c.lineWidth = 2.6;
+        c.beginPath();
+        c.moveTo(-8, 0);
+        c.quadraticCurveTo(0, 8, 8, 0);
+        c.stroke();
+      }
+
+      function drawChiikawa(c, p, mood, phase, blink) {
+        c.beginPath();
+        c.ellipse(-25, -50, 13, 18, -0.15, 0, TAU);
+        outline(c, p.body, p.line, 4);
+        c.beginPath();
+        c.ellipse(25, -50, 13, 18, 0.15, 0, TAU);
+        outline(c, p.body, p.line, 4);
+        c.beginPath();
+        c.ellipse(-25, -50, 6, 9, -0.15, 0, TAU);
+        outline(c, p.earInner, p.line, 1.2);
+        c.beginPath();
+        c.ellipse(25, -50, 6, 9, 0.15, 0, TAU);
+        outline(c, p.earInner, p.line, 1.2);
+        drawRoundBody(c, p.body, p.line);
+        drawBelly(c, p.outfit, p.outfitLine, mood);
+        const timid = mood === 'teased' || mood === 'lost';
+        drawArm(c, -28, 4, timid ? -17 : -44, timid ? 21 : 11, p.body, p.line);
+        drawArm(c, 28, 4, timid ? 17 : 44, timid ? 21 : 11, p.body, p.line);
+        drawLegs(c, p.body, p.line, phase, mood);
+        drawEyes(c, p.line, blink, mood, -14, -20, 14, -20);
+        drawBlush(c, p.blush, -27, -4, 27, -4);
+        c.strokeStyle = p.line;
+        c.lineWidth = 2.3;
+        c.beginPath();
+        if (mood === 'teased') {
+          c.moveTo(-5, 5);
+          c.quadraticCurveTo(0, 1, 5, 5);
+        } else {
+          c.moveTo(-5, 1);
+          c.quadraticCurveTo(0, 5, 5, 1);
+        }
+        c.stroke();
+      }
+
+      function drawCatEars(c, p, phase, mood) {
+        const wiggle = Math.sin(phase) * (mood === 'chase' ? 4 : 1.5);
+        c.beginPath();
+        c.moveTo(-34, -40);
+        c.lineTo(-21, -75 + wiggle);
+        c.lineTo(-4, -43);
+        c.closePath();
+        outline(c, p.shade, p.line, 4);
+        c.beginPath();
+        c.moveTo(34, -40);
+        c.lineTo(21, -75 - wiggle);
+        c.lineTo(4, -43);
+        c.closePath();
+        outline(c, p.shade, p.line, 4);
+      }
+
+      function drawRoundBody(c, fill, line) {
+        c.beginPath();
+        c.ellipse(0, -16, 43, 48, 0, 0, TAU);
+        outline(c, fill, line, 4);
+      }
+
+      function drawBelly(c, fill, line, mood) {
+        c.save();
+        c.globalAlpha = mood === 'lost' ? 0.82 : 1;
+        c.beginPath();
+        c.ellipse(0, 13, 26, 24, 0, 0, TAU);
+        outline(c, fill, line, 2.1);
+        c.restore();
+      }
+
+      function drawArm(c, sx, sy, ex, ey, fill, line) {
+        c.strokeStyle = line;
+        c.lineWidth = 12;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(sx, sy);
+        c.quadraticCurveTo((sx + ex) / 2, sy + 7, ex, ey);
+        c.stroke();
+        c.strokeStyle = fill;
+        c.lineWidth = 7;
+        c.beginPath();
+        c.moveTo(sx, sy);
+        c.quadraticCurveTo((sx + ex) / 2, sy + 7, ex, ey);
+        c.stroke();
+      }
+
+      function drawLegs(c, fill, line, phase, mood) {
+        const run = mood === 'chase' || mood === 'excited';
+        const step = run ? Math.sin(phase * 1.8) * 8 : 0;
+        c.beginPath();
+        c.ellipse(-17 + step * 0.15, 36 + Math.max(0, step) * 0.2, 14, 10, -0.08, 0, TAU);
+        outline(c, fill, line, 3);
+        c.beginPath();
+        c.ellipse(17 - step * 0.15, 36 + Math.max(0, -step) * 0.2, 14, 10, 0.08, 0, TAU);
+        outline(c, fill, line, 3);
+      }
+
+      function drawEyes(c, color, blink, mood, lx, ly, rx, ry) {
+        c.fillStyle = color;
+        if (mood === 'teased') {
+          c.strokeStyle = color;
+          c.lineWidth = 3;
+          c.beginPath();
+          c.moveTo(lx - 6, ly - 2);
+          c.lineTo(lx + 5, ly + 2);
+          c.moveTo(rx - 5, ry + 2);
+          c.lineTo(rx + 6, ry - 2);
+          c.stroke();
+          return;
+        }
+        if (blink > 0.45) {
+          c.strokeStyle = color;
+          c.lineWidth = 3;
+          c.beginPath();
+          c.moveTo(lx - 6, ly);
+          c.quadraticCurveTo(lx, ly + 3, lx + 6, ly);
+          c.moveTo(rx - 6, ry);
+          c.quadraticCurveTo(rx, ry + 3, rx + 6, ry);
+          c.stroke();
+          return;
+        }
+        c.beginPath();
+        c.ellipse(lx, ly, 4.2, 6.4, 0, 0, TAU);
+        c.ellipse(rx, ry, 4.2, 6.4, 0, 0, TAU);
+        c.fill();
+        c.fillStyle = '#fff';
+        c.beginPath();
+        c.arc(lx + 1.2, ly - 2, 1.2, 0, TAU);
+        c.arc(rx + 1.2, ry - 2, 1.2, 0, TAU);
+        c.fill();
+      }
+
+      function drawBlush(c, color, lx, ly, rx, ry) {
+        c.save();
+        c.globalAlpha = 0.72;
+        c.fillStyle = color;
+        c.beginPath();
+        c.ellipse(lx, ly, 8, 4, -0.18, 0, TAU);
+        c.ellipse(rx, ry, 8, 4, 0.18, 0, TAU);
+        c.fill();
+        c.restore();
+      }
+
+      function spawnDust(x, y, character) {
+        state.particles.push({
+          type: 'dust',
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 1.4 - buddy.facing * 0.6,
+          vy: -Math.random() * 1.1,
+          life: 1,
+          size: 5 + Math.random() * 5,
+          color: character.palette.shade
+        });
+      }
+
+      function spawnSpark(x, y, character, mood) {
+        state.particles.push({
+          type: mood === 'teased' ? 'pop' : 'spark',
+          x: x + (Math.random() - 0.5) * 50,
+          y: y + (Math.random() - 0.5) * 34,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -1.6 - Math.random() * 1.4,
+          life: 1,
+          size: 5 + Math.random() * 7,
+          rot: Math.random() * TAU,
+          color: mood === 'teased' ? character.palette.coral || '#ff8a72' : character.palette.accent
+        });
+      }
+
+      function spawnPop(x, y, character) {
+        for (let i = 0; i < 20; i++) spawnSpark(x, y, character, 'happy');
+      }
+
+      function spawnBubble(x, y, text, character) {
+        if (!text) return;
+        state.bubbles.push({
+          x,
+          y,
+          text,
+          life: 1,
+          vy: -0.48,
+          color: character.palette.accent
+        });
+      }
+
+      function updateParticles() {
+        for (let i = state.particles.length - 1; i >= 0; i--) {
+          const p = state.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.035;
+          p.life -= p.type === 'dust' ? 0.028 : 0.018;
+          if (p.life <= 0) {
+            state.particles.splice(i, 1);
+            continue;
+          }
+          ctx.save();
+          ctx.globalAlpha = clamp(p.life, 0, 1);
+          if (p.type === 'dust') {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha *= 0.34;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * (1.2 - p.life), 0, TAU);
+            ctx.fill();
+          } else if (p.type === 'spark') {
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            drawStar(ctx, p.size, p.color);
+          } else {
+            ctx.strokeStyle = '#ff705d';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(p.x - p.size, p.y - p.size);
+            ctx.lineTo(p.x + p.size, p.y + p.size);
+            ctx.moveTo(p.x + p.size, p.y - p.size);
+            ctx.lineTo(p.x - p.size, p.y + p.size);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
+      function drawStar(c, size, color) {
+        c.fillStyle = color;
+        c.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const r = i % 2 ? size * 0.38 : size;
+          const a = -Math.PI / 2 + i * Math.PI / 4;
+          c.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        c.closePath();
+        c.fill();
+      }
+
+      function updateBubbles() {
+        for (let i = state.bubbles.length - 1; i >= 0; i--) {
+          const b = state.bubbles[i];
+          b.x += Math.sin(b.life * 7) * 0.22;
+          b.y += b.vy;
+          b.life -= 0.014;
+          if (b.life <= 0) {
+            state.bubbles.splice(i, 1);
+            continue;
+          }
+          drawBubble(b);
+        }
+      }
+
+      function drawBubble(b) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, b.life * 1.8);
+        ctx.font = '800 14px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+        const w = Math.min(state.width - 32, ctx.measureText(b.text).width + 28);
+        const h = 32;
+        const x = clamp(b.x - w / 2, 12, state.width - w - 12);
+        const y = clamp(b.y - h / 2, 58, state.height - h - 12);
+        roundRect(ctx, x, y, w, h, 8);
+        ctx.fillStyle = 'rgba(255, 250, 242, 0.92)';
+        ctx.fill();
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#2f2116';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.text, x + w / 2, y + h / 2 + 0.5, w - 18);
+        ctx.restore();
+      }
+
+      function roundRect(c, x, y, w, h, r) {
+        c.beginPath();
+        c.moveTo(x + r, y);
+        c.lineTo(x + w - r, y);
+        c.quadraticCurveTo(x + w, y, x + w, y + r);
+        c.lineTo(x + w, y + h - r);
+        c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        c.lineTo(x + r, y + h);
+        c.quadraticCurveTo(x, y + h, x, y + h - r);
+        c.lineTo(x, y + r);
+        c.quadraticCurveTo(x, y, x + r, y);
+      }
+
+      function setPointerTarget(x, y, active = true) {
+        const next = { x: clamp(x, 0, state.width), y: clamp(y, 0, state.height) };
+        if (state.target) {
+          state.targetVelocity.x = next.x - state.target.x;
+          state.targetVelocity.y = next.y - state.target.y;
+        } else {
+          state.targetVelocity.x = 0;
+          state.targetVelocity.y = 0;
+        }
+        state.lastTarget = state.target;
+        state.target = next;
+        state.targetActive = active;
+        state.lastSeen = performance.now();
+      }
+
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const existing = document.querySelector(`script[data-src="${src}"]`);
+          if (existing?.dataset.loaded === 'true') {
+            resolve();
+            return;
+          }
+          const script = existing || document.createElement('script');
+          script.src = src;
+          script.dataset.src = src;
+          script.crossOrigin = 'anonymous';
+          script.onload = () => {
+            script.dataset.loaded = 'true';
+            resolve();
+          };
+          script.onerror = () => reject(new Error(`加载失败：${src}`));
+          if (!existing) document.head.appendChild(script);
+        });
+      }
+
+      async function ensureMediaPipe() {
+        if (window.Hands && window.Camera) return;
+        const sources = [
+          {
+            camera: 'https://registry.npmmirror.com/@mediapipe/camera_utils/latest/files/camera_utils.js',
+            hands: 'https://registry.npmmirror.com/@mediapipe/hands/latest/files/hands.js'
+          },
+          {
+            camera: 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+            hands: 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+          }
+        ];
+        let lastError = null;
+        for (const source of sources) {
+          try {
+            await loadScript(source.camera);
+            await loadScript(source.hands);
+            if (window.Hands && window.Camera) return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        throw lastError || new Error('手部识别脚本加载失败');
+      }
+
+      async function startCamera() {
+        state.started = true;
+        startLayer.classList.add('hide');
+        setMode('camera');
+        audioEngine.startSoft();
+        setStatus('请求摄像头权限', false);
+
+        try {
+          if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前浏览器不支持摄像头');
+          setStatus('加载手部识别模型', false);
+          await ensureMediaPipe();
+          setStatus('请求摄像头权限', false);
+
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'user',
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          });
+          video.srcObject = stream;
+          await video.play();
+
+          const hands = new Hands({
+            locateFile: (file) => `https://registry.npmmirror.com/@mediapipe/hands/latest/files/${file}`
+          });
+          hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.45,
+            minTrackingConfidence: 0.32
+          });
+          hands.onResults((results) => {
+            state.frameReady = true;
+            handleHands(results.multiHandLandmarks || []);
+          });
+
+          const camera = new Camera(video, {
+            width: 1280,
+            height: 720,
+            onFrame: async () => {
+              await hands.send({ image: video });
+            }
+          });
+          await camera.start();
+          state.hands = hands;
+          state.camera = camera;
+          state.cameraReady = true;
+          setStatus('摄像头运行中', true);
+          showToast('乌萨奇看见你啦');
+        } catch (error) {
+          console.warn(error);
+          setMode('touch');
+          setStatus('已切到触摸模式', true);
+          showToast('先从触摸模式撒欢');
+        }
+      }
+
+      function handleHands(allHands) {
+        if (state.mode !== 'camera') return;
+        let best = null;
+        for (const hand of allHands) {
+          const tip = hand[8];
+          const pip = hand[6];
+          const wrist = hand[0];
+          if (!tip || !pip || !wrist) continue;
+          const reachTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+          const reachPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y);
+          const confidence = reachTip / Math.max(0.001, reachPip);
+          const point = { ...landmarkToScreen(tip), confidence };
+          if (!best || point.confidence > best.confidence) best = point;
+        }
+        if (best) {
+          setPointerTarget(best.x, best.y, true);
+        } else if (performance.now() - state.lastSeen > 220) {
+          state.targetActive = false;
+        }
+      }
+
+      function landmarkToScreen(lm) {
+        if (!video.videoWidth || !video.videoHeight) {
+          return { x: (1 - lm.x) * state.width, y: lm.y * state.height };
+        }
+        const scale = Math.max(state.width / video.videoWidth, state.height / video.videoHeight);
+        const drawW = video.videoWidth * scale;
+        const drawH = video.videoHeight * scale;
+        const drawX = (state.width - drawW) / 2;
+        const drawY = (state.height - drawH) / 2;
+        return {
+          x: drawX + (1 - lm.x) * drawW,
+          y: drawY + lm.y * drawH
+        };
+      }
+
+      function startTouchMode() {
+        state.started = true;
+        startLayer.classList.add('hide');
+        setMode('touch');
+        audioEngine.startSoft();
+        showToast('开始撒欢');
+      }
+
+      function initPointerEvents() {
+        window.addEventListener('pointerdown', (event) => {
+          if (event.target.closest('button, input, .settings')) return;
+          if (!state.started) return;
+          state.pointerDown = true;
+          if (state.mode !== 'camera') setMode('touch');
+          setPointerTarget(event.clientX, event.clientY, true);
+          audioEngine.startSoft();
+        });
+        window.addEventListener('pointermove', (event) => {
+          if (!state.started || event.target.closest('button, input, .settings')) return;
+          if (state.mode === 'touch' || state.pointerDown) setPointerTarget(event.clientX, event.clientY, true);
+        });
+        window.addEventListener('pointerup', () => {
+          state.pointerDown = false;
+          if (state.mode === 'touch') {
+            state.lastSeen = performance.now() - 900;
+          }
+        });
+        window.addEventListener('pointercancel', () => {
+          state.pointerDown = false;
+        });
+      }
+
+      const audioEngine = (() => {
+        let ctxAudio = null;
+        let master = null;
+        let timer = null;
+        let step = 0;
+        let playing = false;
+        const bpm = 136;
+        const beat = 60 / bpm;
+        const melody = [0, 4, 7, 9, 12, 9, 7, 4, 5, 9, 12, 14, 16, 14, 12, 9];
+        const bass = [0, 0, 5, 5, 7, 7, 4, 4];
+        const scaleRoot = 261.63;
+
+        function ensure() {
+          if (ctxAudio) return;
+          ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+          master = ctxAudio.createGain();
+          master.gain.value = 0.0;
+          master.connect(ctxAudio.destination);
+        }
+
+        function midiRatio(semi) {
+          return Math.pow(2, semi / 12);
+        }
+
+        function tone(time, freq, type, duration, gainValue, pan = 0) {
+          const osc = ctxAudio.createOscillator();
+          const gain = ctxAudio.createGain();
+          const panner = ctxAudio.createStereoPanner ? ctxAudio.createStereoPanner() : null;
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, time);
+          gain.gain.setValueAtTime(0.0001, time);
+          gain.gain.exponentialRampToValueAtTime(gainValue, time + 0.018);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+          if (panner) {
+            panner.pan.value = pan;
+            osc.connect(gain).connect(panner).connect(master);
+          } else {
+            osc.connect(gain).connect(master);
+          }
+          osc.start(time);
+          osc.stop(time + duration + 0.02);
+        }
+
+        function noise(time, duration, gainValue) {
+          const bufferSize = Math.floor(ctxAudio.sampleRate * duration);
+          const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+          const source = ctxAudio.createBufferSource();
+          const filter = ctxAudio.createBiquadFilter();
+          const gain = ctxAudio.createGain();
+          filter.type = 'highpass';
+          filter.frequency.value = 6000;
+          gain.gain.setValueAtTime(gainValue, time);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+          source.buffer = buffer;
+          source.connect(filter).connect(gain).connect(master);
+          source.start(time);
+          source.stop(time + duration);
+        }
+
+        function schedule() {
+          if (!ctxAudio || !playing) return;
+          const now = ctxAudio.currentTime + 0.045;
+          const note = melody[step % melody.length];
+          const bassNote = bass[Math.floor(step / 2) % bass.length];
+          const accent = step % 4 === 0;
+          tone(now, scaleRoot * 2 * midiRatio(note), 'triangle', beat * 0.72, accent ? 0.08 : 0.052, (step % 6 - 2) * 0.08);
+          if (step % 2 === 0) tone(now, scaleRoot * 0.5 * midiRatio(bassNote), 'sine', beat * 1.3, 0.045, -0.18);
+          if (step % 4 === 0) tone(now, 82, 'sine', 0.12, 0.13);
+          if (step % 2 === 1) noise(now, 0.045, 0.035);
+          if (step % 8 === 6) tone(now, scaleRoot * 3 * midiRatio(12), 'square', 0.08, 0.025, 0.28);
+          step++;
+        }
+
+        function play() {
+          ensure();
+          ctxAudio.resume();
+          playing = true;
+          musicBtn.classList.add('playing');
+          master.gain.cancelScheduledValues(ctxAudio.currentTime);
+          master.gain.linearRampToValueAtTime(0.72, ctxAudio.currentTime + 0.35);
+          if (!timer) {
+            schedule();
+            timer = setInterval(schedule, beat * 500);
+          }
+        }
+
+        function stop() {
+          if (!ctxAudio) return;
+          playing = false;
+          musicBtn.classList.remove('playing');
+          master.gain.cancelScheduledValues(ctxAudio.currentTime);
+          master.gain.linearRampToValueAtTime(0.0001, ctxAudio.currentTime + 0.25);
+          clearInterval(timer);
+          timer = null;
+        }
+
+        return {
+          startSoft() {
+            if (!playing) play();
+          },
+          toggle() {
+            if (playing) stop();
+            else play();
+          }
+        };
+      })();
+
+      function loop(now) {
+        const dt = Math.min(0.033, (loop.last ? now - loop.last : 16.7) / 1000);
+        loop.last = now;
+        drawBackdrop();
+        updateBuddy(dt);
+        drawTarget();
+        updateParticles();
+        drawBuddy();
+        updateBubbles();
+        requestAnimationFrame(loop);
+      }
+
+      function bindControls() {
+        settingsBtn.addEventListener('click', () => {
+          const open = !settingsPanel.classList.contains('open');
+          settingsPanel.classList.toggle('open', open);
+          settingsBtn.setAttribute('aria-expanded', String(open));
+        });
+        document.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            settingsPanel.classList.remove('open');
+            settingsBtn.setAttribute('aria-expanded', 'false');
+          }
+        });
+        musicBtn.addEventListener('click', () => audioEngine.toggle());
+        startMusicBtn.addEventListener('click', () => audioEngine.toggle());
+        startCameraBtn.addEventListener('click', startCamera);
+        startTouchBtn.addEventListener('click', startTouchMode);
+        cameraModeBtn.addEventListener('click', () => {
+          if (!state.started) return;
+          if (!state.cameraReady) startCamera();
+          else setMode('camera');
+        });
+        touchModeBtn.addEventListener('click', () => {
+          if (!state.started) startTouchMode();
+          else setMode('touch');
+        });
+        energyRange.value = String(state.energy);
+        energyValue.textContent = `${state.energy}%`;
+        energyRange.addEventListener('input', () => {
+          state.energy = parseInt(energyRange.value, 10);
+          energyValue.textContent = `${state.energy}%`;
+          localStorage.setItem('usagi-chase.energy', String(state.energy));
+        });
+      }
+
+      function boot() {
+        resize();
+        createCharacterButtons();
+        bindControls();
+        initPointerEvents();
+        drawStartFace();
+        setInterval(drawStartFace, 260);
+        requestAnimationFrame(loop);
+        window.addEventListener('resize', resize);
+        setMood('idle', true);
+      }
+
+      boot();
+    })();
+  </script>
+</body>
+</html>
