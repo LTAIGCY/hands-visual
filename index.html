@@ -564,6 +564,8 @@
 
       const canvas = document.getElementById('scene');
       const ctx = canvas.getContext('2d');
+      const bgCanvas = document.createElement('canvas');
+      const bgCtx = bgCanvas.getContext('2d');
       const video = document.getElementById('video');
       const statusBadge = document.getElementById('statusBadge');
       const statusText = document.getElementById('statusText');
@@ -1000,17 +1002,29 @@
         cameraReady: false,
         frameReady: false,
         lastVideoFrame: null,
+        lastHandsSentAt: 0,
         target: null,
         lastTarget: null,
+        ghostTarget: null,
+        rawTarget: null,
         targetVelocity: { x: 0, y: 0 },
+        ghostVelocity: { x: 0, y: 0 },
         targetActive: false,
+        hasSeenTarget: false,
         lastSeen: 0,
+        lostStartedAt: 0,
         closeSince: 0,
         closeMemory: 0,
         previousDistance: null,
         mood: 'idle',
         moodTimer: 0,
+        moodStartedAt: performance.now(),
         moodLockUntil: 0,
+        questionUntil: 0,
+        lastQuestionAt: 0,
+        lostQuestionShown: false,
+        backdropDirty: true,
+        lastBackdropPaint: 0,
         characterId: localStorage.getItem('usagi-chase.character') || 'usagi',
         energy: parseInt(localStorage.getItem('usagi-chase.energy') || '110', 10),
         particles: [],
@@ -1051,6 +1065,12 @@
         canvas.style.width = state.width + 'px';
         canvas.style.height = state.height + 'px';
         ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+        bgCanvas.width = canvas.width;
+        bgCanvas.height = canvas.height;
+        bgCanvas.style.width = canvas.style.width;
+        bgCanvas.style.height = canvas.style.height;
+        bgCtx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+        state.backdropDirty = true;
         buddy.x = clamp(buddy.x, 70, Math.max(70, state.width - 70));
         buddy.y = clamp(buddy.y, 95, Math.max(95, state.height - 55));
       }
@@ -1066,6 +1086,7 @@
         if (mood !== state.mood || force) {
           state.mood = mood;
           state.moodTimer = 0;
+          state.moodStartedAt = now;
           moodText.textContent = currentCharacter().labels[mood] || '';
           if (force || now - state.lastLineAt > 700) showLine(mood);
         }
@@ -1091,12 +1112,18 @@
 
       function setMode(mode) {
         state.mode = mode;
+        state.backdropDirty = true;
         cameraModeBtn.setAttribute('aria-pressed', String(mode === 'camera'));
         touchModeBtn.setAttribute('aria-pressed', String(mode === 'touch'));
         if (mode === 'touch') {
           setStatus('触摸模式', true);
           state.targetActive = false;
           state.target = null;
+          state.ghostTarget = null;
+          state.rawTarget = null;
+          state.questionUntil = 0;
+          state.hasSeenTarget = false;
+          state.lostStartedAt = 0;
         } else {
           setStatus(state.cameraReady ? '摄像头运行中' : '摄像头准备中', state.cameraReady);
         }
@@ -1159,7 +1186,44 @@
         startFaceCtx.restore();
       }
 
-      function drawBackdrop() {
+      function paintStaticBackdrop(now) {
+        const w = state.width;
+        const h = state.height;
+        const t = now / 1000;
+        bgCtx.clearRect(0, 0, w, h);
+
+        const g = bgCtx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, '#87dce8');
+        g.addColorStop(0.48, '#f6db76');
+        g.addColorStop(1, '#ff9d88');
+        bgCtx.fillStyle = g;
+        bgCtx.fillRect(0, 0, w, h);
+
+        bgCtx.save();
+        bgCtx.globalAlpha = 0.2;
+        bgCtx.fillStyle = '#ffffff';
+        for (let i = 0; i < 10; i++) {
+          const x = ((i * 173 + t * 18) % (w + 140)) - 70;
+          const y = 50 + (i % 5) * 52 + Math.sin(t + i) * 8;
+          drawCloud(bgCtx, x, y, 0.68 + (i % 3) * 0.13);
+        }
+        bgCtx.restore();
+
+        bgCtx.save();
+        bgCtx.fillStyle = 'rgba(255, 255, 255, 0.24)';
+        for (let i = 0; i < 8; i++) {
+          const x = (i * 151 + Math.sin(t * 0.7 + i) * 16) % (w + 100) - 40;
+          const y = h * 0.74 + Math.cos(t * 0.9 + i) * 12;
+          bgCtx.beginPath();
+          bgCtx.ellipse(x, y, 84, 18, -0.18, 0, TAU);
+          bgCtx.fill();
+        }
+        bgCtx.restore();
+        state.backdropDirty = false;
+        state.lastBackdropPaint = now;
+      }
+
+      function drawBackdrop(now = performance.now()) {
         const w = state.width;
         const h = state.height;
         if (state.mode === 'camera' && video.readyState >= 2 && video.videoWidth && video.videoHeight) {
@@ -1178,66 +1242,47 @@
           ctx.drawImage(video, dx, dy, dw, dh);
           ctx.restore();
           ctx.save();
-          ctx.fillStyle = 'rgba(255, 250, 242, 0.16)';
+          ctx.fillStyle = 'rgba(255, 250, 242, 0.13)';
           ctx.fillRect(0, 0, w, h);
           ctx.restore();
-        } else {
-          const g = ctx.createLinearGradient(0, 0, w, h);
-          g.addColorStop(0, '#87dce8');
-          g.addColorStop(0.48, '#f6db76');
-          g.addColorStop(1, '#ff9d88');
-          ctx.fillStyle = g;
-          ctx.fillRect(0, 0, w, h);
-
-          const t = performance.now() / 1000;
-          ctx.save();
-          ctx.globalAlpha = 0.2;
-          ctx.fillStyle = '#ffffff';
-          for (let i = 0; i < 10; i++) {
-            const x = ((i * 173 + t * 18) % (w + 140)) - 70;
-            const y = 50 + (i % 5) * 52 + Math.sin(t + i) * 8;
-            drawCloud(x, y, 0.68 + (i % 3) * 0.13);
-          }
-          ctx.restore();
-
-          ctx.save();
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.24)';
-          for (let i = 0; i < 8; i++) {
-            const x = (i * 151 + Math.sin(t * 0.7 + i) * 16) % (w + 100) - 40;
-            const y = h * 0.74 + Math.cos(t * 0.9 + i) * 12;
-            ctx.beginPath();
-            ctx.ellipse(x, y, 84, 18, -0.18, 0, TAU);
-            ctx.fill();
-          }
-          ctx.restore();
+          return;
         }
+
+        if (state.backdropDirty || now - state.lastBackdropPaint > 96) {
+          paintStaticBackdrop(now);
+        }
+        ctx.drawImage(bgCanvas, 0, 0, w, h);
       }
 
-      function drawCloud(x, y, s) {
-        ctx.beginPath();
-        ctx.ellipse(x, y + 10 * s, 38 * s, 15 * s, 0, 0, TAU);
-        ctx.ellipse(x + 26 * s, y + 7 * s, 30 * s, 14 * s, 0, 0, TAU);
-        ctx.ellipse(x - 26 * s, y + 9 * s, 26 * s, 13 * s, 0, 0, TAU);
-        ctx.ellipse(x + 5 * s, y - 2 * s, 29 * s, 19 * s, 0, 0, TAU);
-        ctx.fill();
+      function drawCloud(targetCtx, x, y, s) {
+        targetCtx.beginPath();
+        targetCtx.ellipse(x, y + 10 * s, 38 * s, 15 * s, 0, 0, TAU);
+        targetCtx.ellipse(x + 26 * s, y + 7 * s, 30 * s, 14 * s, 0, 0, TAU);
+        targetCtx.ellipse(x - 26 * s, y + 9 * s, 26 * s, 13 * s, 0, 0, TAU);
+        targetCtx.ellipse(x + 5 * s, y - 2 * s, 29 * s, 19 * s, 0, 0, TAU);
+        targetCtx.fill();
       }
 
       function drawTarget() {
-        if (!state.targetActive || !state.target) return;
-        const t = performance.now() / 1000;
-        const x = state.target.x;
-        const y = state.target.y;
+        const now = performance.now();
+        const age = now - state.lastSeen;
+        const displayTarget = state.targetActive ? state.target : (age < 1450 ? state.target : age < 2400 ? state.ghostTarget : null);
+        if (!displayTarget) return;
+        const t = now / 1000;
+        const x = displayTarget.x;
+        const y = displayTarget.y;
+        const baseAlpha = state.targetActive ? 1 : clamp(1 - age / 2400, 0.12, 0.44);
         ctx.save();
         for (let i = 0; i < 3; i++) {
           const p = (t * 1.3 + i * 0.33) % 1;
-          ctx.globalAlpha = 0.42 * (1 - p);
+          ctx.globalAlpha = baseAlpha * 0.42 * (1 - p);
           ctx.strokeStyle = i === 0 ? '#fffaf2' : '#ff8a72';
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.arc(x, y, 12 + p * 42, 0, TAU);
           ctx.stroke();
         }
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = baseAlpha;
         ctx.fillStyle = '#fffaf2';
         ctx.shadowColor = '#ff8a72';
         ctx.shadowBlur = 18;
@@ -1260,11 +1305,29 @@
         }
         buddy.blink = Math.max(0, buddy.blink - dt * 8);
 
+        const seenAge = now - state.lastSeen;
         let target = state.targetActive ? state.target : null;
-        if (target && now - state.lastSeen > 260 && state.mode === 'touch' && !state.pointerDown) target = null;
-        if (!target && now - state.lastSeen > 500) {
+        let targetIsMemory = false;
+
+        if (!target && state.target && seenAge < 1450) {
+          target = state.target;
+          targetIsMemory = true;
+        } else if (!target && state.ghostTarget && seenAge < 2400) {
+          target = state.ghostTarget;
+          targetIsMemory = true;
+        }
+
+        if (targetIsMemory) {
+          if (!state.lostStartedAt) state.lostStartedAt = now;
+          state.targetVelocity.x *= 0.86;
+          state.targetVelocity.y *= 0.86;
+        }
+
+        if (!target && seenAge > 2400) {
           state.targetActive = false;
           state.target = null;
+          state.ghostTarget = null;
+          state.rawTarget = null;
         }
 
         let d = Infinity;
@@ -1287,19 +1350,31 @@
           state.closeSince = 0;
         }
 
-        const pulledAway = target && state.previousDistance !== null && state.previousDistance < 92 && d > 230 && (d - state.previousDistance > 76 || Math.hypot(state.targetVelocity.x, state.targetVelocity.y) > 30);
-        const suddenlyLost = !target && state.closeMemory && now - state.closeMemory < 1400;
-        if ((pulledAway || suddenlyLost) && now > state.moodLockUntil) {
+        const targetFresh = target && !targetIsMemory && seenAge < 190;
+        const pulledAway = targetFresh && state.previousDistance !== null && state.previousDistance < 92 && d > 230 && (d - state.previousDistance > 76 || Math.hypot(state.targetVelocity.x, state.targetVelocity.y) > 30);
+        const canAskQuestion = now - state.lastQuestionAt > 7000;
+        if (pulledAway && canAskQuestion && now > state.moodLockUntil) {
           setMood('teased', true);
+          state.questionUntil = now + 1250;
+          state.lastQuestionAt = now;
           state.moodLockUntil = now + (character.temperament === 'wild' ? 900 : 1300);
-          for (let i = 0; i < 9; i++) spawnSpark(buddy.x, buddy.y - 60, character, 'teased');
+          for (let i = 0; i < 5; i++) spawnSpark(buddy.x, buddy.y - 60, character, 'teased');
         } else if (target) {
-          const speed = Math.hypot(state.targetVelocity.x, state.targetVelocity.y);
-          if (d < 64 && speed < 5.8) setMood('excited');
-          else if (d < 148 && speed < 6.2) setMood('sniff');
-          else setMood('chase');
-        } else if (now - state.lastSeen > 2600) {
+          if (targetIsMemory) {
+            setMood(seenAge < 1320 ? 'chase' : 'idle');
+          } else {
+            const speed = Math.hypot(state.targetVelocity.x, state.targetVelocity.y);
+            if (d < 64 && speed < 5.8) setMood('excited');
+            else if (d < 148 && speed < 6.2) setMood('sniff');
+            else setMood('chase');
+          }
+        } else if (state.hasSeenTarget && seenAge > 3200) {
           setMood('lost');
+          if (!state.lostQuestionShown && now - state.lastQuestionAt > 7000) {
+            state.questionUntil = now + 1200;
+            state.lastQuestionAt = now;
+            state.lostQuestionShown = true;
+          }
         } else {
           setMood('idle');
         }
@@ -1318,7 +1393,7 @@
           buddy.vy += ody * 0.082 * character.speed * energy;
           buddy.facing = Math.cos(buddy.spin) > 0 ? 1 : -1;
           buddy.jump = Math.max(buddy.jump, 10 + Math.abs(Math.sin(buddy.phase * 2)) * 9);
-          if (Math.random() < 0.16) spawnSpark(buddy.x, buddy.y - 70, character, 'happy');
+          if (Math.random() < 0.1) spawnSpark(buddy.x, buddy.y - 70, character, 'happy');
         } else if (target && state.mood !== 'teased') {
           const ux = dx / (d || 1);
           const uy = dy / (d || 1);
@@ -1370,7 +1445,7 @@
         buddy.x = clamp(buddy.x, marginX, state.width - marginX);
         buddy.y = clamp(buddy.y, 94, state.height - 48);
 
-        if (Math.hypot(buddy.vx, buddy.vy) > 5 && Math.random() < 0.26) {
+        if (Math.hypot(buddy.vx, buddy.vy) > 5 && Math.random() < 0.16) {
           spawnDust(buddy.x - buddy.facing * 30, buddy.y + 38, character);
         }
 
@@ -1400,6 +1475,7 @@
           lean,
           speed,
           blink: buddy.blink,
+          showQuestion: performance.now() < state.questionUntil,
           squish: speed > 3 ? Math.sin(runPhase * 2) * 0.08 * runPower : 0,
           spin: buddy.spin,
           shy: character.temperament === 'shy' ? (state.mood === 'sniff' || state.mood === 'excited' ? 0.35 : 0.65) : 0,
@@ -1449,7 +1525,7 @@
         else drawStickerChiikawa(targetCtx, p, mood, phase, blink, pose);
 
         if (mood === 'excited') drawStickerOrbitDots(targetCtx, p, phase);
-        if (mood === 'teased') drawQuestionPop(targetCtx, p, phase);
+        if (pose.showQuestion) drawQuestionPop(targetCtx, p, phase);
         if (mood === 'sniff') drawSniffMarks(targetCtx, p, phase);
         targetCtx.restore();
         targetCtx.restore();
@@ -2497,8 +2573,14 @@
         state.lastTarget = state.target;
         state.lastTargetTime = now;
         state.target = next;
+        state.ghostTarget = { x: next.x, y: next.y };
+        state.ghostVelocity.x = state.targetVelocity.x;
+        state.ghostVelocity.y = state.targetVelocity.y;
         state.targetActive = active;
         state.lastSeen = now;
+        state.lostStartedAt = 0;
+        state.lostQuestionShown = false;
+        if (active) state.hasSeenTarget = true;
       }
 
       function loadScript(src) {
@@ -2575,9 +2657,9 @@
           });
           hands.setOptions({
             maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.45,
-            minTrackingConfidence: 0.32
+            modelComplexity: 0,
+            minDetectionConfidence: 0.42,
+            minTrackingConfidence: 0.28
           });
           hands.onResults((results) => {
             state.frameReady = true;
@@ -2585,9 +2667,12 @@
           });
 
           const camera = new Camera(video, {
-            width: 1280,
-            height: 720,
+            width: 960,
+            height: 540,
             onFrame: async () => {
+              const now = performance.now();
+              if (now - state.lastHandsSentAt < 30) return;
+              state.lastHandsSentAt = now;
               await hands.send({ image: video });
             }
           });
@@ -2636,7 +2721,7 @@
         }
         if (best) {
           setPointerTarget(best.x, best.y, true, 'camera');
-        } else if (performance.now() - state.lastSeen > 220) {
+        } else if (performance.now() - state.lastSeen > 950) {
           state.targetActive = false;
         }
       }
@@ -2680,7 +2765,9 @@
         window.addEventListener('pointerup', () => {
           state.pointerDown = false;
           if (state.mode === 'touch') {
-            state.lastSeen = performance.now() - 900;
+            state.lastSeen = performance.now() - 350;
+            state.targetActive = false;
+            state.lostStartedAt = performance.now();
           }
         });
         window.addEventListener('pointercancel', () => {
@@ -2798,9 +2885,9 @@
       })();
 
       function loop(now) {
-        const dt = Math.min(0.033, (loop.last ? now - loop.last : 16.7) / 1000);
+        const dt = Math.min(0.026, (loop.last ? now - loop.last : 16.7) / 1000);
         loop.last = now;
-        drawBackdrop();
+        drawBackdrop(now);
         updateBuddy(dt);
         drawTarget();
         updateParticles();
