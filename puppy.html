@@ -1296,8 +1296,9 @@
         const character = currentCharacter();
         const energy = state.energy / 100;
         const now = performance.now();
+        const frame = clamp(dt * 60, 0.45, 1.25);
         state.moodTimer += dt;
-        buddy.phase += dt * (7.2 + energy * 3.1) * character.bounce;
+        buddy.phase += dt * (4.8 + energy * 1.65) * character.bounce;
         buddy.blinkAt -= dt;
         if (buddy.blinkAt <= 0) {
           buddy.blink = 1;
@@ -1319,8 +1320,9 @@
 
         if (targetIsMemory) {
           if (!state.lostStartedAt) state.lostStartedAt = now;
-          state.targetVelocity.x *= 0.86;
-          state.targetVelocity.y *= 0.86;
+          const memoryDamp = Math.pow(0.9, frame);
+          state.targetVelocity.x *= memoryDamp;
+          state.targetVelocity.y *= memoryDamp;
         }
 
         if (!target && seenAge > 2400) {
@@ -1334,8 +1336,8 @@
         let dx = 0;
         let dy = 0;
         if (target) {
-          const leadX = state.targetVelocity.x * 0.34;
-          const leadY = state.targetVelocity.y * 0.18;
+          const leadX = state.targetVelocity.x * 0.18;
+          const leadY = state.targetVelocity.y * 0.09;
           const targetOffsetY = character.shape === 'bigMouse' ? 56 : character.shape === 'meji' ? 46 : 42;
           dx = target.x + leadX - buddy.x;
           dy = target.y + targetOffsetY + leadY - buddy.y;
@@ -1382,70 +1384,70 @@
         state.previousDistance = target ? d : null;
 
         if (state.mood === 'excited' && target) {
-          const radius = (32 + 10 * Math.sin(buddy.phase * 0.7)) * character.orbit;
-          const orbitSpeed = (character.temperament === 'wild' ? 3.4 : 2.05) * energy;
+          const radius = (30 + 7 * Math.sin(buddy.phase * 0.7)) * character.orbit;
+          const orbitSpeed = (character.temperament === 'wild' ? 2.25 : 1.45) * energy;
           buddy.spin += dt * orbitSpeed;
           const ox = target.x + Math.cos(buddy.spin) * radius;
           const oy = target.y + 42 + Math.sin(buddy.spin) * radius * 0.62;
           const odx = ox - buddy.x;
           const ody = oy - buddy.y;
-          buddy.vx += odx * 0.082 * character.speed * energy;
-          buddy.vy += ody * 0.082 * character.speed * energy;
+          buddy.vx += odx * 0.046 * character.speed * energy * frame;
+          buddy.vy += ody * 0.046 * character.speed * energy * frame;
           buddy.facing = Math.cos(buddy.spin) > 0 ? 1 : -1;
-          buddy.jump = Math.max(buddy.jump, 10 + Math.abs(Math.sin(buddy.phase * 2)) * 9);
+          buddy.jump = Math.max(buddy.jump, 6 + Math.abs(Math.sin(buddy.phase * 2)) * 5);
           if (Math.random() < 0.1) spawnSpark(buddy.x, buddy.y - 70, character, 'happy');
         } else if (target && state.mood !== 'teased') {
           const ux = dx / (d || 1);
           const uy = dy / (d || 1);
           const farBoost = clamp((d - 90) / 260, 0, 1);
           const arrival = clamp(d / 150, 0.24, 1);
-          const baseAccel = (state.mood === 'sniff' ? 0.3 : 0.82 + farBoost * 0.92) * character.speed * energy * arrival;
+          const baseAccel = (state.mood === 'sniff' ? 0.14 : 0.38 + farBoost * 0.44) * character.speed * energy * arrival * frame;
           buddy.vx += ux * baseAccel;
           buddy.vy += uy * baseAccel;
           if (state.mood === 'chase' && d > 160) {
-            buddy.vx += state.targetVelocity.x * 0.018;
-            buddy.vy += state.targetVelocity.y * 0.012;
+            buddy.vx += state.targetVelocity.x * 0.007 * frame;
+            buddy.vy += state.targetVelocity.y * 0.004 * frame;
           }
           if (Math.abs(dx) > 12) buddy.facing = dx >= 0 ? 1 : -1;
         } else if (state.mood === 'teased') {
-          buddy.vx += Math.sin(buddy.phase * 1.4) * 0.12 * character.speed;
-          buddy.vy += Math.cos(buddy.phase * 1.7) * 0.08;
-          if (character.temperament === 'wild') buddy.jump = Math.max(buddy.jump, 18);
+          buddy.vx += Math.sin(buddy.phase * 1.4) * 0.07 * character.speed * frame;
+          buddy.vy += Math.cos(buddy.phase * 1.7) * 0.045 * frame;
+          if (character.temperament === 'wild') buddy.jump = Math.max(buddy.jump, 10);
         } else {
-          const homeX = state.width * 0.5 + Math.sin(now / 1800) * Math.min(90, state.width * 0.12);
-          const homeY = state.height * 0.68 + Math.sin(now / 2600) * 22;
+          const homeX = state.width * 0.5 + Math.sin(now / 2400) * Math.min(58, state.width * 0.08);
+          const homeY = state.height * 0.68 + Math.sin(now / 3300) * 14;
           const hdx = homeX - buddy.x;
           const hdy = homeY - buddy.y;
           const hd = Math.hypot(hdx, hdy);
           if (hd > 24) {
-            buddy.vx += (hdx / hd) * 0.12;
-            buddy.vy += (hdy / hd) * 0.12;
+            buddy.vx += (hdx / hd) * 0.052 * frame;
+            buddy.vy += (hdy / hd) * 0.052 * frame;
           }
           if (character.temperament === 'wild' && Math.random() < 0.006) {
-            buddy.jump = 28;
+            buddy.jump = 12;
             showLine('idle');
           }
         }
 
-        const cap = (state.mood === 'chase' ? 15.5 : state.mood === 'excited' ? 12.5 : 9.2) * character.speed * energy;
+        const cap = (state.mood === 'chase' ? 7.6 : state.mood === 'excited' ? 6.4 : 4.25) * character.speed * energy;
         const speedNow = Math.hypot(buddy.vx, buddy.vy);
         if (speedNow > cap) {
           buddy.vx = buddy.vx / speedNow * cap;
           buddy.vy = buddy.vy / speedNow * cap;
         }
 
-        const damp = state.mood === 'chase' ? 0.89 : state.mood === 'excited' ? 0.84 : 0.82;
+        const damp = Math.pow(state.mood === 'chase' ? 0.86 : state.mood === 'excited' ? 0.84 : 0.8, frame);
         buddy.vx *= damp;
         buddy.vy *= damp;
-        buddy.x += buddy.vx;
-        buddy.y += buddy.vy;
-        buddy.jump = Math.max(0, buddy.jump - dt * 92);
+        buddy.x += buddy.vx * frame;
+        buddy.y += buddy.vy * frame;
+        buddy.jump = Math.max(0, buddy.jump - dt * 58);
 
         const marginX = Math.max(52, Math.min(90, state.width * 0.09));
         buddy.x = clamp(buddy.x, marginX, state.width - marginX);
         buddy.y = clamp(buddy.y, 94, state.height - 48);
 
-        if (Math.hypot(buddy.vx, buddy.vy) > 5 && Math.random() < 0.16) {
+        if (Math.hypot(buddy.vx, buddy.vy) > 3.2 && Math.random() < 0.08) {
           spawnDust(buddy.x - buddy.facing * 30, buddy.y + 38, character);
         }
 
@@ -1458,19 +1460,24 @@
       function drawBuddy() {
         const character = currentCharacter();
         const speed = Math.hypot(buddy.vx, buddy.vy);
-        const runPower = state.mood === 'chase' ? clamp(Math.max(speed / 12, 0.58), 0, 1) : 0;
-        const runPhase = buddy.phase * (1.18 + runPower * 0.52);
-        const runLift = Math.abs(Math.sin(runPhase * 2)) * (6 + speed * 1.1) * character.bounce * runPower;
-        const moodLift = state.mood === 'excited' ? Math.abs(Math.sin(buddy.phase * 2.4)) * 15 * character.bounce : 0;
+        const runPower = state.mood === 'chase' ? clamp(Math.max(speed / 8.5, 0.24), 0, 0.82) : 0;
+        const idlePower = state.mood === 'idle' ? 1 : state.mood === 'lost' ? 0.72 : state.mood === 'sniff' ? 0.42 : state.mood === 'teased' ? 0.3 : 0;
+        const idlePhase = buddy.phase * 0.62;
+        const idleLift = Math.sin(idlePhase * 1.25) * 2.4 * idlePower;
+        const runPhase = buddy.phase * (0.96 + runPower * 0.34);
+        const runLift = Math.abs(Math.sin(runPhase * 2)) * (3.2 + speed * 0.52) * character.bounce * runPower;
+        const moodLift = state.mood === 'excited' ? Math.abs(Math.sin(buddy.phase * 2.1)) * 8 * character.bounce : 0;
         const action = runPower > 0.12 ? 'run' : state.mood === 'excited' ? 'spin' : state.mood === 'sniff' ? 'sniff' : state.mood === 'teased' ? 'teased' : state.mood;
-        const lean = runPower * 0.22 * buddy.facing;
+        const lean = runPower * 0.13 * buddy.facing;
         const scale = (Math.min(state.width, state.height) < 560 ? 0.78 : 1) * character.size;
-        drawStickerCharacter(ctx, buddy.x, buddy.y - runLift - moodLift - buddy.jump, scale, character, {
+        drawStickerCharacter(ctx, buddy.x, buddy.y - runLift - moodLift - idleLift - buddy.jump, scale, character, {
           mood: state.mood,
           facing: buddy.facing,
           phase: buddy.phase,
           runPhase,
           runPower,
+          idlePhase,
+          idlePower,
           action,
           lean,
           speed,
@@ -1493,23 +1500,27 @@
         const facing = pose.facing || 1;
         const blink = pose.blink || 0;
         const speedSquish = pose.squish || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const strideBob = Math.abs(Math.sin(runPhase * 2)) * runPower;
         const excitedTilt = mood === 'excited' ? Math.sin(phase * 2.4) * 0.16 : 0;
         const chaseTilt = (pose.lean || 0) + Math.sin(runPhase * 2) * 0.06 * runPower;
-        const stickerSquish = speedSquish + strideBob * 0.055 + (mood === 'excited' ? Math.sin(phase * 3.2) * 0.05 : 0);
+        const idleTilt = Math.sin(idlePhase * 0.9) * 0.035 * idlePower;
+        const breath = Math.sin(idlePhase * 1.25) * idlePower;
+        const stickerSquish = speedSquish + strideBob * 0.045 + breath * 0.018 + (mood === 'excited' ? Math.sin(phase * 3.2) * 0.04 : 0);
 
         targetCtx.save();
         targetCtx.translate(x, y);
         targetCtx.scale(s * facing, s);
-        targetCtx.rotate(excitedTilt + chaseTilt);
+        targetCtx.rotate(excitedTilt + chaseTilt + idleTilt);
 
         targetCtx.save();
-        targetCtx.translate(0, -strideBob * 5);
-        targetCtx.scale(1 + stickerSquish * 0.75, 1 - stickerSquish * 0.62);
+        targetCtx.translate(0, -strideBob * 3.2 - breath * 1.8);
+        targetCtx.scale(1 + stickerSquish * 0.58, 1 - stickerSquish * 0.42);
         targetCtx.globalAlpha = 0.24;
         targetCtx.fillStyle = '#17120f';
         targetCtx.beginPath();
-        targetCtx.ellipse(-runPower * 8, 50 + strideBob * 5, 48 + runPower * 9, 12, 0, 0, TAU);
+        targetCtx.ellipse(-runPower * 6, 50 + strideBob * 3, 48 + runPower * 7 + idlePower * 2, 12 + idlePower * 0.8, 0, 0, TAU);
         targetCtx.fill();
         targetCtx.globalAlpha = 1;
 
@@ -1533,11 +1544,15 @@
 
       function drawStickerUsagi(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        const wag = Math.sin(phase * 1.7) * (mood === 'chase' || mood === 'excited' ? 7 : 2) + step * runPower * 10;
-        drawLongEar(c, -24, -69 + runPower * 4, -0.12 + wag * 0.008 - runPower * 0.18, p.body, p.earInner, p.line);
-        drawLongEar(c, 24, -69 - runPower * 2, 0.12 - wag * 0.008 - runPower * 0.12, p.body, p.earInner, p.line);
-        drawOvalBody(c, 0, -13, 43 + runPower * 3, 49 - runPower * 2, p.body, p.line, 5);
+        const breath = Math.sin(idlePhase * 1.25) * idlePower;
+        const idleEar = Math.sin(idlePhase * 1.1) * 3.5 * idlePower;
+        const wag = Math.sin(phase * 1.35) * (mood === 'chase' || mood === 'excited' ? 5 : 2.8) + step * runPower * 6 + idleEar;
+        drawLongEar(c, -24, -69 + runPower * 3 + idleEar * 0.2, -0.12 + wag * 0.008 - runPower * 0.12, p.body, p.earInner, p.line);
+        drawLongEar(c, 24, -69 - runPower * 1.5 - idleEar * 0.18, 0.12 - wag * 0.008 - runPower * 0.08, p.body, p.earInner, p.line);
+        drawOvalBody(c, 0, -13, 43 + runPower * 2 + breath * 0.8, 49 - runPower * 1.5 - breath * 0.6, p.body, p.line, 5);
         drawSideFur(c, p.line, -34, 1);
         drawSideFur(c, p.line, 34, -1);
         drawTinyArms(c, p, mood, phase, -30, 31, pose);
@@ -1553,10 +1568,14 @@
 
       function drawStickerHachiware(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        drawCatEar(c, -28, -48 + step * runPower * 2, -1, p.body, p.earInner, p.line, phase, mood);
-        drawCatEar(c, 28, -48 - step * runPower * 2, 1, p.body, p.earInner, p.line, phase, mood);
-        drawOvalBody(c, 0, -13, 45 + runPower * 2, 49 - runPower, p.body, p.line, 5);
+        const idleEar = Math.sin(idlePhase * 1.3) * 2.2 * idlePower;
+        const breath = Math.sin(idlePhase * 1.2) * idlePower;
+        drawCatEar(c, -28, -48 + step * runPower * 1.5 + idleEar, -1, p.body, p.earInner, p.line, phase, mood);
+        drawCatEar(c, 28, -48 - step * runPower * 1.5 - idleEar * 0.8, 1, p.body, p.earInner, p.line, phase, mood);
+        drawOvalBody(c, 0, -13, 45 + runPower * 1.5 + breath * 0.8, 49 - runPower * 0.8 - breath * 0.5, p.body, p.line, 5);
         c.save();
         c.beginPath();
         c.moveTo(-41, -37);
@@ -1588,10 +1607,14 @@
 
       function drawStickerChiikawa(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        drawRoundEar(c, -25, -47 + step * runPower * 2, 12, 17, p.body, p.earInner, p.line);
-        drawRoundEar(c, 25, -47 - step * runPower * 2, 12, 17, p.body, p.earInner, p.line);
-        drawOvalBody(c, 0, -12, 43 + runPower * 2, 48 - runPower, p.body, p.line, 5);
+        const idleEar = Math.sin(idlePhase * 1.25) * 2.4 * idlePower;
+        const breath = Math.sin(idlePhase * 1.22) * idlePower;
+        drawRoundEar(c, -25, -47 + step * runPower * 1.5 + idleEar, 12, 17, p.body, p.earInner, p.line);
+        drawRoundEar(c, 25, -47 - step * runPower * 1.5 - idleEar, 12, 17, p.body, p.earInner, p.line);
+        drawOvalBody(c, 0, -12, 43 + runPower * 1.5 + breath * 0.8, 48 - runPower * 0.8 - breath * 0.5, p.body, p.line, 5);
         drawSideFur(c, p.line, -34, 1);
         drawSideFur(c, p.line, 34, -1);
         const timid = mood === 'teased' || mood === 'lost';
@@ -1608,11 +1631,14 @@
 
       function drawStickerYellowDog(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        const earLift = Math.sin(phase * 1.6) * (mood === 'chase' ? 6 : 2) + step * runPower * 5;
+        const breath = Math.sin(idlePhase * 1.18) * idlePower;
+        const earLift = Math.sin(phase * 1.25) * (mood === 'chase' ? 4 : 2.6) + step * runPower * 3.5 + Math.sin(idlePhase * 1.35) * 3.2 * idlePower;
         drawFlopEar(c, -33, -35 + earLift, -0.55, p.body, p.earInner, p.line);
         drawFlopEar(c, 33, -35 - earLift, 0.55, p.body, p.earInner, p.line);
-        drawOvalBody(c, 0, -11, 47 + runPower * 3, 52 - runPower * 2, p.body, p.line, 5);
+        drawOvalBody(c, 0, -11, 47 + runPower * 2 + breath, 52 - runPower * 1.4 - breath * 0.7, p.body, p.line, 5);
         c.beginPath();
         c.ellipse(0, 9, 33, 30, 0, 0, TAU);
         outline(c, p.patch, p.line, 2.6);
@@ -1629,10 +1655,14 @@
 
       function drawStickerBigMouse(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        drawRoundEar(c, -34, -51 + step * runPower * 2, 20, 21, p.body, p.earInner, p.line);
-        drawRoundEar(c, 34, -51 - step * runPower * 2, 20, 21, p.body, p.earInner, p.line);
-        drawOvalBody(c, 0, -12, 53 + runPower * 2, 53 - runPower, p.body, p.line, 5);
+        const idleEar = Math.sin(idlePhase * 1.18) * 2.6 * idlePower;
+        const breath = Math.sin(idlePhase * 1.12) * idlePower;
+        drawRoundEar(c, -34, -51 + step * runPower * 1.4 + idleEar, 20, 21, p.body, p.earInner, p.line);
+        drawRoundEar(c, 34, -51 - step * runPower * 1.4 - idleEar, 20, 21, p.body, p.earInner, p.line);
+        drawOvalBody(c, 0, -12, 53 + runPower * 1.4 + breath, 53 - runPower * 0.8 - breath * 0.7, p.body, p.line, 5);
         drawMouseTail(c, p, phase);
         drawMouseBackpack(c, p, phase, runPower);
         if (mood === 'idle' || mood === 'sniff') drawTinyCan(c, p, 0, 32);
@@ -1666,10 +1696,13 @@
 
       function drawStickerMeji(c, p, mood, phase, blink, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const step = Math.sin((pose.runPhase || phase) * 2);
-        drawFluffyEar(c, -31, -42 + step * runPower * 3, -0.45 - runPower * 0.08, p, phase, mood);
-        drawFluffyEar(c, 31, -42 - step * runPower * 3, 0.45 - runPower * 0.08, p, phase, mood);
-        drawFluffyBody(c, p, phase);
+        const idleEar = Math.sin(idlePhase * 1.24) * 2.8 * idlePower;
+        drawFluffyEar(c, -31, -42 + step * runPower * 2 + idleEar, -0.45 - runPower * 0.05, p, phase, mood);
+        drawFluffyEar(c, 31, -42 - step * runPower * 2 - idleEar, 0.45 - runPower * 0.05, p, phase, mood);
+        drawFluffyBody(c, p, phase, idlePower, idlePhase);
         drawSideFur(c, p.line, -38, 1);
         drawSideFur(c, p.line, 38, -1);
         drawTinyArms(c, p, mood, phase, -35, 35, pose);
@@ -1753,9 +1786,10 @@
         outline(c, fill, line, width);
       }
 
-      function drawFluffyBody(c, p, phase) {
+      function drawFluffyBody(c, p, phase, idlePower = 0, idlePhase = phase) {
+        const breath = Math.sin(idlePhase * 1.18) * idlePower;
         c.beginPath();
-        c.ellipse(0, -10, 45, 49, 0, 0, TAU);
+        c.ellipse(0, -10, 45 + breath, 49 - breath * 0.7, 0, 0, TAU);
         outline(c, p.body, p.line, 5);
         c.save();
         c.fillStyle = p.body;
@@ -1763,8 +1797,8 @@
         c.lineWidth = 3;
         for (let i = 0; i < 7; i++) {
           const a = -Math.PI + i * Math.PI / 3;
-          const x = Math.cos(a) * 41;
-          const y = -8 + Math.sin(a) * 44;
+          const x = Math.cos(a) * (41 + breath * 0.8);
+          const y = -8 + Math.sin(a) * (44 - breath * 0.5);
           c.beginPath();
           c.arc(x, y, 9 + Math.sin(phase + i) * 1.5, 0, TAU);
           c.fill();
@@ -1775,43 +1809,50 @@
 
       function drawTinyArms(c, p, mood, phase, lx, rx, pose = {}) {
         const runPower = pose.runPower || 0;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
         const runStep = Math.sin((pose.runPhase || phase) * 2);
-        const wave = Math.sin(phase * 1.8) * (mood === 'chase' || mood === 'excited' ? 10 : 3);
-        const lift = mood === 'excited' ? 16 : mood === 'chase' ? 8 : 0;
-        const leftSwing = runStep * 26 * runPower;
-        const rightSwing = -runStep * 26 * runPower;
-        const leftEndX = lx - 11 - runPower * 13;
-        const rightEndX = rx + 11 + runPower * 13;
-        const leftEndY = 15 - lift + wave * 0.2 - leftSwing * 0.55;
-        const rightEndY = 15 - lift - wave * 0.2 - rightSwing * 0.55;
+        const idleWave = Math.sin(idlePhase * 1.45) * 4.6 * idlePower;
+        const idleReach = Math.sin(idlePhase * 0.78 + 1.1) * 2.8 * idlePower;
+        const wave = Math.sin(phase * 1.45) * (mood === 'chase' || mood === 'excited' ? 7 : 2.2) + idleWave;
+        const lift = mood === 'excited' ? 12 : mood === 'chase' ? 5 : mood === 'sniff' ? 4 : 0;
+        const leftSwing = runStep * 17 * runPower;
+        const rightSwing = -runStep * 17 * runPower;
+        const leftEndX = lx - 9 - runPower * 8 - idleReach;
+        const rightEndX = rx + 9 + runPower * 8 + idleReach;
+        const leftEndY = 15 - lift + wave * 0.18 - leftSwing * 0.48 + Math.cos(idlePhase) * idlePower;
+        const rightEndY = 15 - lift - wave * 0.18 - rightSwing * 0.48 - Math.cos(idlePhase) * idlePower;
         c.strokeStyle = p.line;
         c.lineWidth = 9;
         c.lineCap = 'round';
         c.beginPath();
         c.moveTo(-31, 3);
-        c.quadraticCurveTo(-42 - runPower * 8, 8 - lift * 0.3 + leftSwing * 0.18, leftEndX, leftEndY);
+        c.quadraticCurveTo(-42 - runPower * 5 - idlePower * 2, 8 - lift * 0.3 + leftSwing * 0.16 + idleWave * 0.25, leftEndX, leftEndY);
         c.moveTo(31, 3);
-        c.quadraticCurveTo(42 + runPower * 8, 8 - lift * 0.3 + rightSwing * 0.18, rightEndX, rightEndY);
+        c.quadraticCurveTo(42 + runPower * 5 + idlePower * 2, 8 - lift * 0.3 + rightSwing * 0.16 - idleWave * 0.25, rightEndX, rightEndY);
         c.stroke();
         c.strokeStyle = p.body;
         c.lineWidth = 5;
         c.beginPath();
         c.moveTo(-31, 3);
-        c.quadraticCurveTo(-42 - runPower * 8, 8 - lift * 0.3 + leftSwing * 0.18, leftEndX, leftEndY);
+        c.quadraticCurveTo(-42 - runPower * 5 - idlePower * 2, 8 - lift * 0.3 + leftSwing * 0.16 + idleWave * 0.25, leftEndX, leftEndY);
         c.moveTo(31, 3);
-        c.quadraticCurveTo(42 + runPower * 8, 8 - lift * 0.3 + rightSwing * 0.18, rightEndX, rightEndY);
+        c.quadraticCurveTo(42 + runPower * 5 + idlePower * 2, 8 - lift * 0.3 + rightSwing * 0.16 - idleWave * 0.25, rightEndX, rightEndY);
         c.stroke();
       }
 
       function drawTinyFeet(c, p, phase, mood, pose = {}) {
         const runPower = pose.runPower || 0;
-        const step = (mood === 'chase' || mood === 'excited' ? Math.sin(phase * 1.9) * 5 : 0) + Math.sin((pose.runPhase || phase) * 2) * 23 * runPower;
-        const stride = runPower * 20;
+        const idlePower = pose.idlePower || 0;
+        const idlePhase = pose.idlePhase || phase;
+        const idleShift = Math.sin(idlePhase * 1.25) * 2.6 * idlePower;
+        const step = (mood === 'chase' || mood === 'excited' ? Math.sin(phase * 1.55) * 3.2 : 0) + Math.sin((pose.runPhase || phase) * 2) * 15 * runPower;
+        const stride = runPower * 12;
         c.beginPath();
-        c.ellipse(-17 - stride + step * 0.42, 36 - Math.max(0, -step) * 0.45, 12 + runPower * 3, 8, -0.22 - runPower * 0.28, 0, TAU);
+        c.ellipse(-17 - stride + step * 0.34 - idleShift, 36 - Math.max(0, -step) * 0.34 + Math.abs(idleShift) * 0.18, 12 + runPower * 2, 8, -0.22 - runPower * 0.18, 0, TAU);
         outline(c, p.body, p.line, 3);
         c.beginPath();
-        c.ellipse(17 + stride - step * 0.42, 36 - Math.max(0, step) * 0.45, 12 + runPower * 3, 8, 0.22 + runPower * 0.28, 0, TAU);
+        c.ellipse(17 + stride - step * 0.34 + idleShift, 36 - Math.max(0, step) * 0.34 + Math.abs(idleShift) * 0.18, 12 + runPower * 2, 8, 0.22 + runPower * 0.18, 0, TAU);
         outline(c, p.body, p.line, 3);
       }
 
@@ -2551,20 +2592,20 @@
         };
         const speed = Math.hypot(rawVelocity.x, rawVelocity.y);
         const isCamera = source === 'camera';
-        const alpha = isCamera ? clamp(0.24 + speed / 95, 0.24, 0.68) : 0.78;
+        const alpha = isCamera ? clamp(0.16 + speed / 160, 0.16, 0.42) : 0.52;
         const current = state.target || raw;
         const smooth = {
           x: lerp(current.x, raw.x, alpha),
           y: lerp(current.y, raw.y, alpha)
         };
-        const predict = isCamera ? 0.16 : 0.04;
+        const predict = isCamera ? 0.07 : 0.02;
         const next = {
           x: clamp(smooth.x + rawVelocity.x * predict, 0, state.width),
           y: clamp(smooth.y + rawVelocity.y * predict, 0, state.height)
         };
         if (state.target) {
-          state.targetVelocity.x = next.x - state.target.x;
-          state.targetVelocity.y = next.y - state.target.y;
+          state.targetVelocity.x = lerp(state.targetVelocity.x, next.x - state.target.x, 0.32);
+          state.targetVelocity.y = lerp(state.targetVelocity.y, next.y - state.target.y, 0.32);
         } else {
           state.targetVelocity.x = 0;
           state.targetVelocity.y = 0;
